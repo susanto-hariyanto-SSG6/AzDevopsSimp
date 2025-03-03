@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project List for GHAS</title>
+    <style>
+        #loadingIndicator {
+            display: none;
+            font-weight: bold;
+        }
+        #progressContainer {
+            margin-top: 20px;
+            width:100%;
+            border: 1px solid green;
+        }
+        #progressBar {
+            width: 0%;
+            height: 30px;
+            background-color: green;
+            text-align: center;
+            color: white;
+        }
+        .ciForm {
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        .ciForm input[type="text"], .ciForm select {
+            margin-bottom: 5px;
+            width: 100%;
+            padding: 5px;
+        }
+
+.formContainer {
+    margin-top: 10px;
+}
+
+label {
+    margin-top:5px;
+}
+
+input, select {
+    padding: 3px 8px;
+    margin-top: 5px;
+}
+
+input[type="submit"] {
+    margin-top: 20px;
+    padding: 10px 15px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+input[type="submit"]:hover {
+    background-color: #45a049;
+}
+
+.showFormLink {
+    color: #007BFF;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+#projectList table td{
+  font-size:10pt;
+}
+
+#projectList table td:nth-child(2) a{
+  font-weight:bold;
+  text-decoration:none;
+}
+
+#projectList table td:nth-child(3) a{
+  color:#777;
+}
+
+
+    </style>
+</head>
+<body>
+<form id="patForm">
+    <input type="text" id="PAT" name="PAT" placeholder="Enter PAT" required />
+    <input type="submit" value="Submit" />
+</form>
+<h1>Project List</h1>
+<div id="progressContainer">
+    <div id="progressBar"></div>
+</div>
+<ul id="projectList"></ul>
+
+<div id="ciFormTemplate" class="ciForm">
+    <form id="ciForm">
+        <a href="#" class="showFormLink">Generate Pipeline for this Repo</a>
+        <div class="formContainer" style="display: none;">
+            <label for="projectFolder">Project Folder (Repo Name):</label>
+            <input type="text" id="projectFolder" name="projectFolder" required />        
+
+            <label for="branch">Branch:</label>
+            <select id="branch" name="branch"></select>
+
+            <label for="projectType">Project Type:</label>
+            <select id="projectType" name="projectType">
+                <option value="backend">backend</option>
+                <option value="frontend">frontend</option>
+                <option value="legacy">legacy</option>
+
+            </select>
+
+            <label for="recipientEmail">Recipient Email:</label>
+            <input type="email" id="recipientEmail" name="recipientEmail" value="susanto.hariyanto@binus.edu" required />
+
+            <label for="owner">Owner:</label>
+            <select id="owner" name="owner">
+                <option value="SSG 6 Cluster 1">SSG 6 Cluster 1</option>
+                <option value="SSG 6 Cluster 2">SSG 6 Cluster 2</option>
+                <option value="SSG 6 Cluster 3">SSG 6 Cluster 3</option>
+                <!-- Add more options as needed -->
+            </select>
+
+            <input type="submit" value="Create Pipeline" />
+        </div>
+    </form>
+</div>
+
+<script>
+    const organization = 'itbinus'; // Replace with your organization name
+
+    document.getElementById('patForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const pat = document.getElementById('PAT').value.trim();
+
+        if (!pat) {
+            console.error('PAT is required.');
+            return;
+        }
+
+        try {
+            const projectListElement = document.getElementById('projectList');
+            const data = await getProjects(pat);
+
+            const totalProjects = data.value.length;
+            const loadedProjects = { count: 0 };
+
+            const projectPromises = data.value.map(project =>
+                renderProjectDetails(project, projectListElement, loadedProjects, totalProjects, pat)
+            );
+
+            await Promise.all(projectPromises);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    });
+
+    async function fetchData(url, pat) {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Basic ' + btoa(':' + pat)
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    }
+
+    async function getProjects(pat) {
+        const apiUrl = `https://dev.azure.com/${organization}/_apis/projects?api-version=5.1`;
+        return fetchData(apiUrl, pat);
+    }
+
+    async function getRepos(projectId, pat) {
+	if(projectId === '63dc317e-f250-4b11-b718-9107997b9730' || //EDM-WebServices-Ticket
+	projectId === '4d6417c1-09ab-48e1-8631-a7077e8ce13b' || //mydashboard
+	projectId === '1f663eb2-dd63-4b51-b000-f0949e3c8ab0' //GHAS
+	)
+		return;  
+        const projectRepoUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/git/repositories?api-version=5.1`;
+        return fetchData(projectRepoUrl, pat);
+    }
+
+    async function getPipelines(projectId, pat) {
+    	const pipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/build/definitions?api-version=5.1`;
+    	return fetchData(pipelineUrl, pat);
+    }
+
+    async function getBranches(projectId, repoId, pat) {
+    	const branchesUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/git/repositories/${repoId}/refs?filter=heads&api-version=5.1`;
+    	return fetchData(branchesUrl, pat);
+    }
+
+    async function getAgentQueue(projectId, pat) {
+    	const agentQueueUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/distributedtask/queues?api-version=5.1-preview.1`;
+    	return fetchData(agentQueueUrl, pat);
+    }
+
+    async function runPipeline(pat, projectId, pipelineId) {
+    	const runPipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/pipelines/${pipelineId}/runs?api-version=7.1`;
+	const requestBody = { variables: {} };
+	try {
+	        const response = await fetch(runPipelineUrl, {
+            		method: 'POST',
+            		headers: {
+                		'Content-Type': 'application/json',
+                		'Authorization': 'Basic ' + btoa(':' + pat)
+            		},
+            		body: JSON.stringify(requestBody)
+        	});
+
+        	if (!response.ok) {
+            		throw new Error(`Failed to run pipeline: ${response.statusText}`);
+        	}
+
+        	const result = await response.json();
+        	console.log('Pipeline Executed:', result);
+        	return result;
+
+   	} catch (error) {
+        	console.error('Failed Run Pipeline:', error);
+        	throw error;
+    	}
+
+    }
+
+ async function createPipeline(pat, projectId, repoId, formData) {
+    const createPipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/build/definitions?api-version=7.0`;
+
+    const requestBody = buildPipelineRequestBody(repoId, formData);
+
+    try {
+//console.log(JSON.stringify(requestBody));
+
+        const response = await fetch(createPipelineUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic ' + btoa(':' + pat)
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to create pipeline: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('Pipeline created:', result);
+        return result;
+
+    } catch (error) {
+        console.error('Error creating pipeline:', error);
+        throw error;
+    }
+}
+
+function getRandomHour() {
+    const possibleHours = [...Array(5).keys()].map(i => i + 19) // 19-23
+        .concat([...Array(8).keys()]); // 0-7
+    return possibleHours[Math.floor(Math.random() * possibleHours.length)];
+}
+
+function getRandomMinute() {
+    const possibleMinutes = [1, 11, 21, 31, 41, 51];
+    return possibleMinutes[Math.floor(Math.random() * possibleMinutes.length)];
+}
+
+function buildPipelineRequestBody(repoId, formData) {
+  const randomHour = getRandomHour();
+  const randomMinute = getRandomMinute();
+  const requestBody = {
+    name: `${formData.pipelineName}_${formData.projectFolder}`,
+    repository: {
+        id: repoId,
+        type: 'TfsGit',
+        name: `${formData.projectFolder}`,
+        defaultBranch: `${formData.branch}`,
+        clean: true
+    },
+    project: {
+        id: `${formData.projectId}`
+    },
+    queue: {
+        id: `${formData.queueId}`
+    },
+    process: {
+        phases: [
+            {
+                steps: [
+                    {
+                        environment: {},
+                        enabled: true,
+                        displayName: 'Binus GHAS Code Check',
+                        task: {
+                            id: 'b5befac8-6d54-49f8-9bc1-9957fb928170',
+                            versionSpec: '1.*',
+                            definitionType: 'task'
+                        },
+                        inputs: {
+                            projectRepo: formData.projectFolder,
+                            projectType: formData.projectType,
+			    variable: '',
+			    customYaml: '',
+                            csprojPath: '',
+			    isCustomVmImage: 'false',
+			    vmImage: '',
+			    languages: 'javascript',
+                            recipientEmail: formData.recipientEmail,
+                            projectRequester: formData.recipientEmail,
+                            projectOwner: formData.projectOwner,
+                            isProd: 'true',
+                            isProdConfirmation: 'true'
+                        }
+                    }
+                ],
+                name: 'Agent job 1',
+                refName: 'Job_1',
+                condition: 'succeeded()',
+                jobAuthorizationScope: 2
+            }
+        ],
+        type: 1,
+	target: {
+      		agentSpecification: {
+        	identifier: 'ubuntu-latest'
+      	}
+    }
+    },
+    triggers: [{
+        schedules: [
+            {
+                branchFilters: [
+                    `+${formData.branch}`
+                ],
+                timeZoneId: 'SE Asia Standard Time',
+                startHours: randomHour,
+                startMinutes: randomMinute,
+                daysToBuild: 'all',
+                scheduleJobId: '00000000-0000-0000-0000-000000000000',
+                scheduleOnlyWithChanges: true
+            }
+        ],
+        triggerType: 8
+    }]
+}
+
+// Conditionally add languages input if projectType is 'legacy'
+if (formData.projectType === 'legacy') {
+    requestBody.process.phases[0].steps[0].inputs.languages = 'csharp';
+}
+
+    return requestBody;
+}
+
+
+    async function renderProjectDetails(project, projectListElement, loadedProjects, totalProjects, pat) {
+        try {
+	    //get queueid for currentproject, will be used as pipeline references
+	    const queues = await getAgentQueue(project.id, pat);
+	    const targetQueue = queues.value.find(queue => queue.pool.id === 13);
+            const targetId = targetQueue ? targetQueue.id : null;
+
+            const repos = await getRepos(project.id, pat);
+
+
+            var c = 1;
+
+            const listItem = document.createElement('li');
+            const projectNameHeader = document.createElement('h3');
+            projectNameHeader.textContent = project.name;
+            const projectIdSmall = document.createElement('small');
+            projectIdSmall.textContent = project.description;
+
+            const table = document.createElement('table');
+            listItem.appendChild(projectNameHeader);
+            listItem.appendChild(projectIdSmall);
+            listItem.appendChild(table);
+            projectListElement.appendChild(listItem);
+
+		const pipelines = await getPipelines(project.id, pat);
+
+            for (const repo of repos.value) {
+                renderRepoLink(repo, table, c++, pat, project.id, targetId, pipelines);
+
+            }
+
+            loadedProjects.count++;
+            const progressPercentage = (loadedProjects.count / totalProjects) * 100;
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = `${progressPercentage}%`;
+
+        } catch (error) {
+            console.error('Error processing project details:', error);
+        }
+    }
+
+    function renderRepoLink(repo, table, c, pat, projectId, targetId, pipelines) {
+        const tableRepoRow = document.createElement('tr');
+        const labelCell = document.createElement('td');
+        if (c == 1) {
+            labelCell.textContent = 'Repo';
+        } else {
+            labelCell.textContent = '';
+        }
+        labelCell.style.width = '80px';
+        const valueCell = document.createElement('td');
+	valueCell.style.width = '350px';
+        const repoLink = document.createElement('a');
+        repoLink.href = repo.remoteUrl;
+        repoLink.target = "_blank";
+        repoLink.textContent = repo.name;
+        valueCell.appendChild(repoLink);
+        tableRepoRow.appendChild(labelCell);
+        tableRepoRow.appendChild(valueCell);
+        
+	const valueCell2 = document.createElement('td');
+	const sanitizedRepoName = repo.name.replace(/[\s_@#\$%\^&\*!]/g, '-');
+
+	const matchingPipeline = pipelines.value.find(pipeline => 
+    		["CI_GHAS_", "CI_FE_GHAS_", "CI_LE_GHAS_"].some(prefix => pipeline.name === prefix + sanitizedRepoName)
+	);
+
+        if (!matchingPipeline) {
+		renderCreatePipelineForm(repo, valueCell2, pat, projectId, targetId);
+	} else{
+		const ciLink = document.createElement('a');
+        	ciLink.href = `https://dev.azure.com/itbinus/${projectId}/_build?view=folders`;
+        	ciLink.target = "_blank";
+        	ciLink.textContent = `${matchingPipeline.name} - ${matchingPipeline.id}`;        
+		valueCell2.appendChild(ciLink);
+
+		const runIcon = document.createElement('a');
+        	runIcon.href = "#"; 
+        	runIcon.innerHTML = ' 🚀';
+        	runIcon.style.cursor = "pointer";
+
+        	runIcon.addEventListener("click", async function (event) {
+            		event.preventDefault(); 
+
+            		try {
+                		const runResult = await runPipeline(pat, projectId, matchingPipeline.id);
+               	 		runIcon.remove();
+            		} catch (error) {
+                		console.error("Pipeline execution failed:", error);
+            		}
+        	});
+
+        	valueCell2.appendChild(runIcon);
+	}     
+        tableRepoRow.appendChild(valueCell2);
+        table.appendChild(tableRepoRow);
+    }
+
+async function renderCreatePipelineForm(repo, listItem, pat, projectId, targetId) {
+    const ciFormTemplate = document.getElementById('ciFormTemplate').cloneNode(true);
+    ciFormTemplate.classList.remove('ciForm');
+    listItem.appendChild(ciFormTemplate);
+
+    const createPipelineForm = ciFormTemplate;
+    const projectFolderInput = createPipelineForm.querySelector('#projectFolder');
+    projectFolderInput.value = repo.name.replace(/[\s_@#\$%\^&\*!]/g, '-');
+    const branchSelect = createPipelineForm.querySelector('#branch');
+    const formContainer = createPipelineForm.querySelector('.formContainer');
+    const showFormLink = createPipelineForm.querySelector('.showFormLink');
+
+    showFormLink.addEventListener('click', function(event) {
+        event.preventDefault();
+        formContainer.style.display = formContainer.style.display === 'none' ? 'block' : 'none';
+    });
+
+
+    // Load branches and populate the branch select options
+    const branches = await getBranches(projectId, repo.id, pat);
+    branches.value.forEach(branch => {
+        const option = document.createElement('option');
+        option.value = branch.name;
+        option.textContent = branch.name;
+        branchSelect.appendChild(option);
+    });
+
+    // Show form container on link click
+    showFormLink.addEventListener('click', function(event) {
+        event.preventDefault();
+        formContainer.style.display = 'block';
+        showFormLink.style.display = 'none';
+    });
+
+    createPipelineForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+	const projectType = createPipelineForm.querySelector('#projectType').value;
+
+	const pipelinePrefixes = {
+        	backend: 'CI_GHAS',
+        	frontend: 'CI_FE_GHAS',
+        	legacy: 'CI_LE_GHAS'
+	};
+
+	const pipelineName = pipelinePrefixes[projectType] || 'CI_GHAS';
+        const formData = {
+            pipelineName: pipelineName,
+            projectFolder: projectFolderInput.value,
+            projectType: projectType,
+            recipientEmail: createPipelineForm.querySelector('#recipientEmail').value,
+            projectRequester: 'susanto.hariyanto@binus.edu', // Static value
+            projectOwner: createPipelineForm.querySelector('#owner').value,
+            branch: createPipelineForm.querySelector('#branch').value,
+            projectId: projectId, // Parameterized project ID
+	    queueId: targetId
+        };
+
+        try {
+            await createPipeline(pat, projectId, repo.id, formData); // Pass repoId
+            alert('Pipeline name CI_GHAS ' + projectFolderInput.value + ' successfully created');
+        } catch (error) {
+            console.error('Error creating pipeline:', error);
+            alert('Failed Create Pipeline');
+        }
+    });
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project List</title>
+    <style>
+        #loadingIndicator {
+            display: none;
+            font-weight: bold;
+        }
+        #progressContainer {
+            margin-top: 20px;
+            width:100%;
+            border: 1px solid green;
+        }
+        #progressBar {
+            width: 0%;
+            height: 30px;
+            background-color: green;
+            text-align: center;
+            color: white;
+        }
+	htag { color:#fff; font-size:0.8em; display: inline;}
+    </style>
+</head>
+<body>
+<form>
+<input type="text" id="PAT" name="PAT" placeholder="Enter PAT" required />
+<input type="submit" value="Submit" />
+</form>
+<h1>Project List</h1>
+    <div id="progressContainer">
+        <div id="progressBar"></div>
+    </div>
+<ul id="projectList"></ul>
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    var organization = 'itbinus'; // Replace with your organization name
+    var pat = urlParams.get('PAT'); 
+
+    const c2 = ['sherly.santami@binus.edu', 'syaiful.falah@binus.edu', 'lius.tanaka@binus.edu','bryan.aleron@binus.edu',
+            'naurah.hidayah@binus.edu','irvin@binus.edu','daniel.yohanes@binus.edu','muhammad.alhakim@binus.edu','adrianto.wijaya@binus.edu',
+            'aditya.fajri@binus.edu','desti.sintyaningrum@binus.edu','adrian.purnama@binus.edu','ilham.ardiansyah@binus.edu',
+            'kenny.lim@binus.edu','kezia.tandapai@binus.edu','george.theodore@binus.edu'];
+    const c1 = ['raditya.arianto@binus.edu','raditya.k@binus.edu','donny.ramadan@binus.edu','i.wiranata@binus.edu','joshua.sirusstara@binus.edu',
+            'robby.kurniawan@binus.edu','angela.andriati@binus.edu','nur.pertiwi@binus.edu'];
+    const c3 = ['arief.arfiansyah@binus.edu','roberto.rivelino@binus.edu','roy.bagaskara@binus.edu','delfia@binus.edu','jason.effendi@binus.edu',
+            'febryan.grady@binus.edu','stevanus.febrian@binus.edu','evelyn.untariady@binus.edu','enrico.aristan@binus.edu','nicholas1@binus.edu'];
+    const adm = ['itbinus@binus.edu','Mayliana@binus.edu','ronald.novembry@binus.edu','susanto.hariyanto@binus.edu','adminedm@binus.edu'];
+    const otr = ['fanny.sa@binus.edu',,'venus.winata@binus.edu','fortino.hadiprodjo@binus.edu','steven.suryanata@binus.edu'];
+
+    async function fetchData(url) {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Basic ' + btoa(':' + pat)
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        async function getProjAdmins(organization, projectscopeDescriptor) {
+            const getGroupUrl = `https://vssps.dev.azure.com/${organization}/_apis/graph/groups?scopeDescriptor=${projectscopeDescriptor}&api-version=5.1-preview.1`;
+
+            try {
+                const groups = await fetchData(getGroupUrl);
+                const paGroup = groups.value.find(group => group.displayName === "Project Administrators");
+
+                if (!paGroup) return [];
+
+                const paMembersUrl = `https://vsaex.dev.azure.com/${organization}/_apis/GroupEntitlements/${paGroup.originId}/members?api-version=5.1-preview.1`;
+                const data = await fetchData(paMembersUrl);
+                return data.members.map(member => member.user.mailAddress);
+            } catch (error) {
+                console.error('Error fetching groups or members details:', error);
+                return [];
+            }
+        }
+
+        async function getProjects() {
+            const apiUrl = `https://dev.azure.com/${organization}/_apis/projects?api-version=5.1`;
+            return fetchData(apiUrl);
+        }
+
+        async function getProjectDetails(projectId) {
+            const projectDetailsUrl = `https://vssps.dev.azure.com/${organization}/_apis/graph/descriptors/${projectId}?api-version=5.1-preview.1`;
+            return fetchData(projectDetailsUrl);
+        }
+
+        async function getRepos(projectId) {
+	    if(projectId === '63dc317e-f250-4b11-b718-9107997b9730' || //EDM-WebServices-Ticket
+	        projectId === '4d6417c1-09ab-48e1-8631-a7077e8ce13b' || //mydashboard
+	        projectId === '1f663eb2-dd63-4b51-b000-f0949e3c8ab0' //GHAS
+	    )
+		return;  
+            const projectRepoUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/git/repositories?api-version=5.1`;
+            return fetchData(projectRepoUrl);
+        }
+
+        async function getBranchPolicies(projectId, repoId) {
+            const branchPoliciesUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/policy/configurations?repositoryId=${repoId}&api-version=7.1`;
+            console.log(`https://advsec.dev.azure.com/${organization}/${projectId}/_apis/alert/repositories/${repoId}/alerts?api-version=7.2-preview.1`);
+            return fetchData(branchPoliciesUrl);            
+        }
+
+        async function getTeamMembers(projectscopeDescriptor) {
+            const teamMembersUrl = `https://vssps.dev.azure.com/${organization}/_apis/graph/users?scopeDescriptor=${projectscopeDescriptor}&api-version=5.1-preview.1`;
+            return fetchData(teamMembersUrl);
+        }
+
+        async function processProjectDetails(project, projectListElement, loadedProjects, totalProjects) {
+            const listItem = document.createElement('li');
+            const projectNameHeader = document.createElement('h3');
+            projectNameHeader.textContent = project.name;
+	    const projectIdTag = document.createElement('htag'); 
+	    projectIdTag.textContent = project.id;          
+	    projectNameHeader.appendChild(projectIdTag);
+            const projectIdSmall = document.createElement('small');
+            projectIdSmall.textContent = project.description;
+
+            const table = document.createElement('table');
+            listItem.appendChild(projectNameHeader);  
+            listItem.appendChild(projectIdSmall);
+            listItem.appendChild(table);
+            projectListElement.appendChild(listItem);
+
+            try {
+                const repos = await getRepos(project.id);
+                var c = 1;
+                for (const repo of repos.value) {
+                    const tableRepoRow = document.createElement('tr');
+                    const labelCell = document.createElement('td');
+                    if(c++==1) {
+                            labelCell.textContent = 'Repo';
+                        }else{
+                            labelCell.textContent = '';
+                        }
+                    labelCell.style.width = '200px';
+                    const valueCell = document.createElement('td');
+                    const repoListContainer = document.createElement('div');
+                    const repoListItem = document.createElement('li');
+                    const repoLink = document.createElement('a');
+                    repoLink.href = repo.remoteUrl;
+                    repoLink.target = "_blank";
+                    repoLink.textContent = repo.name;
+                    repoListItem.appendChild(repoLink);
+                    repoListContainer.appendChild(repoListItem);
+                    valueCell.appendChild(repoListContainer);
+                    tableRepoRow.appendChild(labelCell);
+                    tableRepoRow.appendChild(valueCell);
+                    table.appendChild(tableRepoRow);
+
+                    const policies = await getBranchPolicies(project.id, repo.id);
+                    const uniqueBranches = new Set();
+                    const enabledPolicies = policies.value.filter(policy => policy.isEnabled
+                        && policy.settings.minimumApproverCount > 1
+                        && !policy.isDeleted
+                        && (policy.settings.scope[0].repositoryId == null || policy.settings.scope[0].repositoryId === repo.id)
+                        && policy.settings.scope[0].matchKind === "Exact");
+
+                    const branchList = document.createElement('ul');
+                    if (enabledPolicies.length > 0) {
+                        enabledPolicies.forEach(policy => {
+                            const rname = policy.settings.scope[0].refName;
+                            if (rname !== "") {
+                                uniqueBranches.add(rname + " (min " + policy.settings.minimumApproverCount + " approver)");
+                            }
+                        });
+
+                        uniqueBranches.forEach(branch => {
+                            const branchListItem = document.createElement('li');
+                            branchListItem.textContent = branch;
+                            branchList.appendChild(branchListItem);
+                        });
+                        
+                        repoListItem.appendChild(branchList);
+                    } else {
+                        const noPolicyElement = document.createElement('span');
+                        noPolicyElement.textContent = ' !';
+                        noPolicyElement.style.color = 'red';
+                        repoListItem.appendChild(noPolicyElement);
+                    }
+                }
+
+                const projectDetails = await getProjectDetails(project.id);
+                const admins = await getProjAdmins(organization, projectDetails.value);
+                const teamMembers = await getTeamMembers(projectDetails.value);
+
+                if (teamMembers.count > 0) {
+                    const teamMembersRow = document.createElement('tr');
+                    const teamMembersLabelCell = document.createElement('td');
+                    teamMembersLabelCell.textContent = 'Team Members';
+                    const teamMembersValueCell = document.createElement('td');
+                    teamMembersValueCell.style.color = '#333';
+                    let teamMembersString = '';
+
+                    teamMembers.value.forEach((member, index) => {
+                        const isSpecialMember = member.mailAddress.startsWith('v-');
+                        const isProjAdmin = admins.includes(member.mailAddress);
+                        const isc1 = c1.includes(member.mailAddress);
+                        const isc2 = c2.includes(member.mailAddress);
+                        const isc3 = c3.includes(member.mailAddress);
+                        const isadm = adm.includes(member.mailAddress);
+                        const isotr = otr.includes(member.mailAddress);
+                        if (isSpecialMember) {
+                            teamMembersString += `<span style="background-color:yellow">${member.mailAddress}</span>`;
+                        } else if (isProjAdmin) {
+                            teamMembersString += `<span style="background-color:#ffe556">${member.displayName} - ${member.mailAddress} ⭐</span>`;
+                        } else if (isc1) {
+                            teamMembersString += `<span style="background-color:lightblue">${member.displayName} - ${member.mailAddress}</span>`;
+                        } else if (isc2) {
+                            teamMembersString += `<span style="background-color:lightgreen">${member.displayName} - ${member.mailAddress}</span>`;
+                        } else if (isc3) {
+                            teamMembersString += `<span style="background-color:lightcoral">${member.displayName} - ${member.mailAddress}</span>`;
+                        } else if (isadm) {
+                            teamMembersString += `<span style="background-color:gold">${member.displayName} - ${member.mailAddress}</span>`;
+                        } else if (isotr) {
+                            teamMembersString += `<span style="background-color:#ccc">${member.displayName} - ${member.mailAddress}</span>`;
+                        } else {
+                            teamMembersString += member.displayName + ' - ' + member.mailAddress;
+                        }
+
+                        if (index < teamMembers.value.length - 1) {
+                            teamMembersString += '<br>';
+                        }
+                    });
+
+                    teamMembersValueCell.innerHTML = teamMembersString;
+                    teamMembersRow.appendChild(teamMembersLabelCell);
+                    teamMembersRow.appendChild(teamMembersValueCell);
+                    table.appendChild(teamMembersRow);
+                }
+            } catch (error) {
+                console.error('Error processing project details:', error);
+            } finally {
+                loadedProjects.count++;
+                const progressPercentage = (loadedProjects.count / totalProjects) * 100;
+                const progressBar = document.getElementById('progressBar');
+                progressBar.style.width = `${progressPercentage}%`;
+            }
+        }
+
+        async function displayProjects() {
+            try {
+                
+                const progressContainer = document.getElementById('progressContainer');
+                const progressBar = document.getElementById('progressBar');
+
+                
+                const projectListElement = document.getElementById('projectList');
+                const data = await getProjects();
+
+                const totalProjects = data.value.length;
+                const loadedProjects = { count: 0 };
+
+                const projectPromises = data.value.map(project => 
+                    processProjectDetails(project, projectListElement, loadedProjects, totalProjects)
+                );
+
+                await Promise.all(projectPromises);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        if (pat) {
+            displayProjects();
+        }
+
+</script>
+
+</body>
+</html>
