@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project List for GHAS</title>
+    <style>
+        #loadingIndicator {
+            display: none;
+            font-weight: bold;
+        }
+        #progressContainer {
+            margin-top: 20px;
+            width:100%;
+            border: 1px solid green;
+        }
+        #progressBar {
+            width: 0%;
+            height: 30px;
+            background-color: green;
+            text-align: center;
+            color: white;
+        }
+        
+#projectList table td{
+  font-size:10pt;
+}
+
+#projectList table td:nth-child(2) a{
+  font-weight:bold;
+  text-decoration:none;
+}
+
+#projectList table td:nth-child(3) a{
+  color:#777;
+}
+.findings {
+  display:block;
+  white-space:nowrap;
+  color: #444;
+}
+.findings.fixed {
+    color: #888;
+}
+.findings a {
+    text-decoration: none;}
+    </style>
+</head>
+<body>
+<form id="patForm">
+    <input type="text" id="PAT" name="PAT" placeholder="Enter PAT" required />
+    <input type="submit" value="Submit" />
+</form>
+<h1>Project List</h1>
+<div id="progressContainer">
+    <div id="progressBar"></div>
+</div>
+<ul id="projectList"></ul>
+
+<script>
+    const organization = 'itbinus'; // Replace with your organization name
+
+    document.getElementById('patForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const pat = document.getElementById('PAT').value.trim();
+
+        if (!pat) {
+            console.error('PAT is required.');
+            return;
+        }
+
+        try {
+            const projectListElement = document.getElementById('projectList');
+            const data = await getProjects(pat);
+
+            const totalProjects = data.value.length;
+            const loadedProjects = { count: 0 };
+
+            const projectPromises = data.value.map(project =>
+                renderProjectDetails(project, projectListElement, loadedProjects, totalProjects, pat)
+            );
+
+            await Promise.all(projectPromises);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    });
+
+    async function fetchData(url, pat) {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Basic ' + btoa(':' + pat)
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    }
+
+    async function getProjects(pat) {
+        const apiUrl = `https://dev.azure.com/${organization}/_apis/projects?api-version=5.1`;
+        return fetchData(apiUrl, pat);
+    }
+
+    async function getPipelines(projectId, pat) {
+    	const pipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/build/definitions?api-version=5.1`;
+    	return fetchData(pipelineUrl, pat);
+    }
+
+    async function getGhasResult(projectId, pat, repo) {
+    	const pipelineUrl = `https://advsec.dev.azure.com/${organization}/${projectId}/_apis/alert/repositories/${repo}/alerts?api-version=7.2-preview.1`;
+    	return fetchData(pipelineUrl, pat);
+    }
+
+    async function renderProjectDetails(project, projectListElement, loadedProjects, totalProjects, pat) {
+        try {
+
+            var c = 1;
+
+            const listItem = document.createElement('li');
+            const projectNameHeader = document.createElement('h3');
+            projectNameHeader.textContent = project.name;
+            const projectIdSmall = document.createElement('small');
+            projectIdSmall.textContent = project.description;
+
+            const table = document.createElement('table');
+            listItem.appendChild(projectNameHeader);
+            listItem.appendChild(projectIdSmall);
+            listItem.appendChild(table);
+            projectListElement.appendChild(listItem);
+
+		    const pipelines = await getPipelines(project.id, pat);
+            const matchingPipeline = pipelines.value.filter(pipeline => 
+    		["CI_GHAS_", "CI_FE_GHAS_", "CI_LE_GHAS_"].some(prefix => pipeline.name.startsWith(prefix))
+	        );
+            for (const pipeline of matchingPipeline) {
+               renderPipelineLink(table, c++, pat, project.id, pipeline);
+
+            }
+
+            loadedProjects.count++;
+            const progressPercentage = (loadedProjects.count / totalProjects) * 100;
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = `${progressPercentage}%`;
+
+        } catch (error) {
+            console.error('Error processing project details:', error);
+        }
+    }
+
+    async function renderPipelineLink(table, c, pat, projectId, pipeline) {
+        const tableRepoRow = document.createElement('tr');
+        const labelCell = document.createElement('td');
+        if (c == 1) {
+            labelCell.textContent = 'Ghas CI';
+        } else {
+            labelCell.textContent = '';
+        }
+        labelCell.style.width = '80px';
+
+        const valueCell = document.createElement('td');
+	    valueCell.style.width = '400px';
+        const repoLink = document.createElement('a');
+        repoLink.href = `https://dev.azure.com/itbinus/${projectId}/_build?view=folders`;
+        repoLink.target = "_blank";
+        repoLink.textContent = pipeline.name;
+        valueCell.appendChild(repoLink);
+
+        const findingsCell = document.createElement('td');
+        findingsCell.textContent = "Loading findings...";
+
+        tableRepoRow.appendChild(labelCell);
+        tableRepoRow.appendChild(valueCell);        
+        tableRepoRow.appendChild(findingsCell);
+        table.appendChild(tableRepoRow);
+
+        try {
+            const sanitizedPipelineName = pipeline.name.replace(/^(CI_GHAS_|CI_FE_GHAS_|CI_LE_GHAS_)/, "");
+            const findings = await getGhasResult('1f663eb2-dd63-4b51-b000-f0949e3c8ab0', pat, sanitizedPipelineName);
+            if (findings.value && Array.isArray(findings.value)) {
+                findingsCell.innerHTML = ""; // Clear loading text
+
+                findings.value.forEach(finding => {
+                    const tag = document.createElement('a');
+                    tag.target = "ghasVul";
+                    tag.href=`https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/${sanitizedPipelineName}/alerts/${finding.alertId}?branch=refs/heads/master`;
+                    const type = finding.alertType === "code" ? "CODE" : finding.alertType === "dependency" ? "DEPS" : finding.alertType;
+                    const state = finding.state === "active" ? "🔳" : finding.state === "fixed" ? "✅" : finding.state;
+                    const sever = finding.severity === "high" ? "🟠" : finding.severity === "medium" ? "🟡" :
+                        finding.severity === "low" ? "🟢" : finding.severity === "critical" ? "🔴" : finding.severity;
+                    tag.textContent = `${state}${sever}${type} ${finding.title}`;
+                    tag.className = `findings ${finding.severity} ${finding.state}`;
+                    findingsCell.appendChild(tag);
+                });
+            } else {
+                findingsCell.textContent = "No findings found";
+            }
+        } catch (error) {
+            findingsCell.textContent = "Error fetching findings";
+            console.error("Error fetching GHAS findings:", error);
+        }
+
+    }
+    
+</script>
+</body>
+</html>
