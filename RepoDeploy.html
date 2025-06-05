@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure DevOps Deployment Agents</title>
+</head>
+<body>
+    <form id="patForm">
+        <input type="text" id="PAT" name="PAT" placeholder="Enter PAT" required />
+        <input type="submit" value="Fetch Deployments" />
+    </form>
+    
+    <h1>Deployment Agents & Related CD Pipelines</h1>
+    <ul id="deploymentList"></ul>
+    
+    <script>
+        const organization = 'itbinus'; // Replace with your organization name
+        const project = 'SSG6-C3-BIDC-Pengembangan-Program-Baru'; // Replace with your project name
+        
+        document.getElementById('patForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const pat = document.getElementById('PAT').value.trim();
+            
+            if (!pat) {
+                console.error('PAT is required.');
+                return;
+            }
+            
+            try {
+                const deploymentListElement = document.getElementById('deploymentList');
+                deploymentListElement.innerHTML = '';
+                
+                const agents = await getDeploymentAgents(pat);
+                
+                for (const agent of agents.value) {
+                    const pipelines = await getPipelinesForAgent(agent, pat);
+                    
+                    for (const pipeline of pipelines.value) {
+                        renderDeployment(agent, pipeline, deploymentListElement);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        });
+
+        async function fetchData(url, pat) {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Basic ' + btoa(':' + pat)
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        async function getDeploymentAgents(pat) {
+            const apiUrl = `https://dev.azure.com/${organization}/${project}/_apis/distributedtask/pools/1/agents?api-version=6.0-preview.1`;
+            return fetchData(apiUrl, pat);
+        }
+
+        async function getPipelinesForAgent(agent, pat) {
+            const apiUrl = `https://vsrm.dev.azure.com/${organization}/${project}/_apis/release/releases?definitionId=${agent.id}&api-version=6.0`;
+            return fetchData(apiUrl, pat);
+        }
+
+        function renderDeployment(agent, pipeline, deploymentListElement) {
+            const listItem = document.createElement('li');
+            const deploymentLink = document.createElement('a');
+            
+            deploymentLink.href = `https://dev.azure.com/${organization}/${project}/_releaseProgress?_a=release-pipeline-progress&releaseId=${pipeline.id}`;
+            deploymentLink.textContent = `${pipeline.name} - Agent: ${agent.name}`;
+            deploymentLink.target = "_blank";
+            
+            listItem.appendChild(deploymentLink);
+            deploymentListElement.appendChild(listItem);
+        }
+    </script>
+</body>
+</html>

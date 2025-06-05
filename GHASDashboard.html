@@ -21,29 +21,55 @@
             text-align: center;
             color: white;
         }
-        
-#projectList table td{
-  font-size:10pt;
+#projectList{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.project-block {
+  flex: 1 1 calc(30% - 2rem);
+  margin: 0.4rem;
+  padding: 0.6rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #f9f9f9;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
-#projectList table td:nth-child(2) a{
-  font-weight:bold;
-  text-decoration:none;
+.project-name {
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+    text-align: center;
 }
 
-#projectList table td:nth-child(3) a{
-  color:#777;
+.severity-blocks {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem;
 }
-.findings {
-  display:block;
-  white-space:nowrap;
-  color: #444;
+
+.severity {
+    flex: 1 1 calc(20% - 2rem);
+    min-width: 10%;
+    padding: 1rem;
+    border-radius: 6px;
+    color: white;
+    text-align: center;
+    font-weight: bold;
 }
-.findings.fixed {
-    color: #888;
+
+.critical { background-color: #e74c3c; }
+.high { background-color: #e67e22; }
+.medium { background-color: #f1c40f; color: #333; }
+.other { background-color: #95a5a6; }
+
+@media (max-width: 600px) {
+    .severity {
+        flex: 1 1 100%;
+    }
 }
-.findings a {
-    text-decoration: none;}
     </style>
 </head>
 <body>
@@ -55,7 +81,7 @@
 <div id="progressContainer">
     <div id="progressBar"></div>
 </div>
-<ul id="projectList"></ul>
+<div id="projectList"></div>
 
 <script>
     const organization = 'itbinus'; // Replace with your organization name
@@ -80,11 +106,36 @@
                 renderProjectDetails(project, projectListElement, loadedProjects, totalProjects, pat)
             );
 
-            await Promise.all(projectPromises);
+            await Promise.all(projectPromises);            
+            console.log(dashboardData);
+            setTimeout('printDashboard()', 1000);
         } catch (error) {
             console.error('Error fetching data:', error);
         }
     });
+    
+
+    async function printDashboard(){
+        const container = document.getElementById("projectList");
+
+        Object.values(dashboardData).forEach(project => {
+            const projectDiv = document.createElement("div");
+            projectDiv.className = "project-block";
+
+            projectDiv.innerHTML = `
+                <div class="project-name">${project.repo}</div>
+                <div class="severity-blocks">
+                    <div class="severity critical">${project.critical}</div>
+                    <div class="severity high">${project.high}</div>
+                    <div class="severity medium">${project.medium}</div>
+                    <div class="severity other">${project.other}</div>
+                </div>
+            `;
+
+            container.appendChild(projectDiv);
+            console.log(project.repo);
+        });
+    }
 
     async function fetchData(url, pat) {
         const response = await fetch(url, {
@@ -114,31 +165,21 @@
     	return fetchData(pipelineUrl, pat);
     }
 
+    const dashboardData = {};
+
     async function renderProjectDetails(project, projectListElement, loadedProjects, totalProjects, pat) {
         try {
 
             var c = 1;
 
-            const listItem = document.createElement('li');
-            const projectNameHeader = document.createElement('h3');
-            projectNameHeader.textContent = project.name;
-            const projectIdSmall = document.createElement('small');
-            projectIdSmall.textContent = project.description;
-
-            const table = document.createElement('table');
-            listItem.appendChild(projectNameHeader);
-            listItem.appendChild(projectIdSmall);
-            listItem.appendChild(table);
-            projectListElement.appendChild(listItem);
-
-		    const pipelines = await getPipelines(project.id, pat);
+            const pipelines = await getPipelines(project.id, pat);
             const matchingPipeline = pipelines.value.filter(pipeline => 
     		["CI_GHAS_", "CI_FE_GHAS_", "CI_LE_GHAS_"].some(prefix => pipeline.name.startsWith(prefix))
 	        );
             for (const pipeline of matchingPipeline) {
-               renderPipelineLink(table, c++, pat, project.id, pipeline);
+               renderPipelineLink(c++, pat, project.id, pipeline);
 
-            }
+            }            
 
             loadedProjects.count++;
             const progressPercentage = (loadedProjects.count / totalProjects) * 100;
@@ -150,49 +191,41 @@
         }
     }
 
-    async function renderPipelineLink(table, c, pat, projectId, pipeline) {
-        const tableRepoRow = document.createElement('tr');
-        const labelCell = document.createElement('td');
-        if (c == 1) {
-            labelCell.textContent = 'Ghas CI';
-        } else {
-            labelCell.textContent = '';
-        }
-        labelCell.style.width = '80px';
-
-        const valueCell = document.createElement('td');
-	    valueCell.style.width = '400px';
-        const repoLink = document.createElement('a');
-        repoLink.href = `https://dev.azure.com/itbinus/${projectId}/_build?view=folders`;
-        repoLink.target = "_blank";
-        repoLink.textContent = pipeline.name;
-        valueCell.appendChild(repoLink);
-
-        const findingsCell = document.createElement('td');
-        findingsCell.textContent = "Loading findings...";
-
-        tableRepoRow.appendChild(labelCell);
-        tableRepoRow.appendChild(valueCell);        
-        tableRepoRow.appendChild(findingsCell);
-        table.appendChild(tableRepoRow);
-
+    async function renderPipelineLink(c, pat, projectId, pipeline) {
+        
         try {
             const sanitizedPipelineName = pipeline.name.replace(/^(CI_GHAS_|CI_FE_GHAS_|CI_LE_GHAS_)/, "");
             const findings = await getGhasResult('1f663eb2-dd63-4b51-b000-f0949e3c8ab0', pat, sanitizedPipelineName);
             if (findings.value && Array.isArray(findings.value)) {
-                findingsCell.innerHTML = ""; // Clear loading text
 
                 findings.value.forEach(finding => {
-                    const tag = document.createElement('a');
-                    tag.target = "ghasVul";
-                    tag.href=`https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/${sanitizedPipelineName}/alerts/${finding.alertId}?branch=refs/heads/master`;
-                    const type = finding.alertType === "code" ? "CODE" : finding.alertType === "dependency" ? "DEPS" : finding.alertType;
-                    const state = finding.state === "active" ? "🔳" : finding.state === "fixed" ? "✅" : finding.state === "dismissed" ? "❎" : finding.state;
-                    const sever = finding.severity === "high" ? "🟠" : finding.severity === "medium" ? "🟡" :
-                        finding.severity === "low" ? "🟢" : finding.severity === "critical" ? "🔴" : finding.severity;
-                    tag.textContent = `${state}${sever}${type} ${finding.title}`;
-                    tag.className = `findings ${finding.severity} ${finding.state}`;
-                    findingsCell.appendChild(tag);
+                    if(finding.state === "active") {
+                        const projectName = sanitizedPipelineName; // Adjust if multiple pipelines exist
+                        if (!dashboardData[projectName]) {
+                            dashboardData[projectName] = {
+                                repo: projectName,
+                                critical: 0,
+                                high: 0,
+                                medium: 0,
+                                other: 0
+                            };
+                        }
+
+                        switch (finding.severity) {
+                            case "critical":
+                                dashboardData[projectName].critical++;
+                                break;
+                            case "high":
+                                dashboardData[projectName].high++;
+                                break;
+                            case "medium":
+                                dashboardData[projectName].medium++;
+                                break;
+                            default:
+                                dashboardData[projectName].other++;
+                                break;
+                        }
+                    }
                     
                 });
             } else {
