@@ -40,12 +40,10 @@
     var pat = urlParams.get('PAT'); 
 
     const c2 = ['sherly.santami@binus.edu', 'syaiful.falah@binus.edu', 'lius.tanaka@binus.edu','bryan.aleron@binus.edu',
-            'naurah.hidayah@binus.edu','irvin@binus.edu','daniel.yohanes@binus.edu','muhammad.alhakim@binus.edu','adrianto.wijaya@binus.edu',
-            'aditya.fajri@binus.edu','desti.sintyaningrum@binus.edu','audrey.phang@binus.edu','dean.xie@binus.edu','steven2@binus.edu','hazel.alden@binus.edu'];
+            'naurah.hidayah@binus.edu','irvin@binus.edu','daniel.yohanes@binus.edu','muhammad.alhakim@binus.edu','adrianto.wijaya@binus.edu','aditya.fajri@binus.edu','desti.sintyaningrum@binus.edu','audrey.phang@binus.edu','dean.xie@binus.edu','steven2@binus.edu','hazel.alden@binus.edu','wilmer.kwodeevan@binus.edu'];
     const c1 = ['raditya.arianto@binus.edu','raditya.k@binus.edu','donny.ramadan@binus.edu','i.wiranata@binus.edu',
-            'robby.kurniawan@binus.edu','angela.andriati@binus.edu','nur.pertiwi@binus.edu',' joel.wahidiyat@binus.edu'];
-    const c3 = ['arief.arfiansyah@binus.edu','roberto.rivelino@binus.edu','roy.bagaskara@binus.edu','delfia@binus.edu','jason.effendi@binus.edu',
-            'febryan.grady@binus.edu','stevanus.febrian@binus.edu','evelyn.untariady@binus.edu','enrico.aristan@binus.edu','gabriella.clairine@binus.edu'];
+            'robby.kurniawan@binus.edu','angela.andriati@binus.edu','nur.pertiwi@binus.edu','joel.wahidiyat@binus.edu'];
+    const c3 = ['arief.arfiansyah@binus.edu','roberto.rivelino@binus.edu','roy.bagaskara@binus.edu','delfia@binus.edu','jason.effendi@binus.edu','febryan.grady@binus.edu','stevanus.febrian@binus.edu','evelyn.untariady@binus.edu','enrico.aristan@binus.edu','gabriella.clairine@binus.edu','hansen.permadi@binus.edu','avner.gunarto@binus.edu'];
     const adm = ['itbinus@binus.edu','Mayliana@binus.edu','ronald.novembry@binus.edu','susanto.hariyanto@binus.edu','adminedm@binus.edu'];
     const otr = ['fanny.sa@binus.edu'];
 
@@ -208,17 +206,17 @@
                         if (isSpecialMember) {
                             teamMembersString += `<span style="background-color:yellow">${member.mailAddress}</span>`;
                         } else if (isProjAdmin) {
-                            teamMembersString += `<span style="background-color:#ffe556">${member.displayName} - ${member.mailAddress} ⭐</span>`;
+                            teamMembersString += `<span style="background-color:#f4ecbd">${member.displayName} - ${member.mailAddress} ⭐</span>`;
                         } else if (isc1) {
-                            teamMembersString += `<span style="background-color:lightblue">${member.displayName} - ${member.mailAddress}</span>`;
+                            teamMembersString += `<span style="background-color:#cdf0fb">${member.displayName} - ${member.mailAddress}</span>`;
                         } else if (isc2) {
-                            teamMembersString += `<span style="background-color:lightgreen">${member.displayName} - ${member.mailAddress}</span>`;
+                            teamMembersString += `<span style="background-color:#befbbe">${member.displayName} - ${member.mailAddress}</span>`;
                         } else if (isc3) {
-                            teamMembersString += `<span style="background-color:lightcoral">${member.displayName} - ${member.mailAddress}</span>`;
+                            teamMembersString += `<span style="background-color:#fdd">${member.displayName} - ${member.mailAddress}</span>`;
                         } else if (isadm) {
-                            teamMembersString += `<span style="background-color:gold">${member.displayName} - ${member.mailAddress}</span>`;
+                            teamMembersString += `<span style="background-color:#f4ecbd">${member.displayName} - ${member.mailAddress}</span>`;
                         } else if (isotr) {
-                            teamMembersString += `<span style="background-color:#ccc">${member.displayName} - ${member.mailAddress}</span>`;
+                            teamMembersString += `<span style="background-color:#ddd">${member.displayName} - ${member.mailAddress}</span>`;
                         } else {
                             teamMembersString += member.displayName + ' - ' + member.mailAddress;
                         }

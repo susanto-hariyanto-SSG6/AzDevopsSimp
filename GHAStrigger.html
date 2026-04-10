@@ -173,56 +173,97 @@ input[type="submit"]:hover {
     }
 
     async function getRepos(projectId, pat) {
-	if(projectId === '63dc317e-f250-4b11-b718-9107997b9730' || //EDM-WebServices-Ticket
-	projectId === '4d6417c1-09ab-48e1-8631-a7077e8ce13b' || //mydashboard
-	projectId === '1f663eb2-dd63-4b51-b000-f0949e3c8ab0' //GHAS
-	)
-		return;  
+        if(projectId === '63dc317e-f250-4b11-b718-9107997b9730' || //EDM-WebServices-Ticket
+        projectId === '4d6417c1-09ab-48e1-8631-a7077e8ce13b' || //mydashboard
+        projectId === '1f663eb2-dd63-4b51-b000-f0949e3c8ab0' //GHAS
+        )
+            return;
         const projectRepoUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/git/repositories?api-version=5.1`;
         return fetchData(projectRepoUrl, pat);
     }
 
     async function getPipelines(projectId, pat) {
-    	const pipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/build/definitions?api-version=5.1`;
-    	return fetchData(pipelineUrl, pat);
+        const pipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/build/definitions?api-version=5.1`;
+        return fetchData(pipelineUrl, pat);
+    }
+
+    async function getPipelineDefinition(projectId, pipelineId, pat) {
+        const pipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/build/definitions/${pipelineId}?api-version=7.0`;
+        return fetchData(pipelineUrl, pat);
+    }
+
+    async function updatePipelineQueueStatus(pat, projectId, pipelineId, queueStatus) {
+        const updatePipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/build/definitions/${pipelineId}?api-version=7.0`;
+        const pipelineDefinition = await getPipelineDefinition(projectId, pipelineId, pat);
+
+        const response = await fetch(updatePipelineUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic ' + btoa(':' + pat)
+            },
+            body: JSON.stringify({
+                ...pipelineDefinition,
+                queueStatus: queueStatus
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to update pipeline status: ${response.statusText}`);
+        }
+
+        return response.json();
     }
 
     async function getBranches(projectId, repoId, pat) {
-    	const branchesUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/git/repositories/${repoId}/refs?filter=heads&api-version=5.1`;
-    	return fetchData(branchesUrl, pat);
+        const branchesUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/git/repositories/${repoId}/refs?filter=heads&api-version=5.1`;
+        return fetchData(branchesUrl, pat);
     }
 
     async function getAgentQueue(projectId, pat) {
-    	const agentQueueUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/distributedtask/queues?api-version=5.1-preview.1`;
-    	return fetchData(agentQueueUrl, pat);
+        const agentQueueUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/distributedtask/queues?api-version=5.1-preview.1`;
+        return fetchData(agentQueueUrl, pat);
     }
 
     async function runPipeline(pat, projectId, pipelineId) {
-    	const runPipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/pipelines/${pipelineId}/runs?api-version=7.1`;
-	const requestBody = { variables: {} };
-	try {
-	        const response = await fetch(runPipelineUrl, {
-            		method: 'POST',
-            		headers: {
-                		'Content-Type': 'application/json',
-                		'Authorization': 'Basic ' + btoa(':' + pat)
-            		},
-            		body: JSON.stringify(requestBody)
-        	});
+        const runPipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/pipelines/${pipelineId}/runs?api-version=7.1`;
+        const requestBody = { variables: {} };
+        try {
+            const response = await fetch(runPipelineUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Basic ' + btoa(':' + pat)
+                },
+                body: JSON.stringify(requestBody)
+            });
 
-        	if (!response.ok) {
-            		throw new Error(`Failed to run pipeline: ${response.statusText}`);
-        	}
+            if (!response.ok) {
+                throw new Error(`Failed to run pipeline: ${response.statusText}`);
+            }
 
-        	const result = await response.json();
-        	console.log('Pipeline Executed:', result);
-        	return result;
+            const result = await response.json();
+            console.log('Pipeline Executed:', result);
+            return result;
 
-   	} catch (error) {
-        	console.error('Failed Run Pipeline:', error);
-        	throw error;
-    	}
+        } catch (error) {
+            console.error('Failed Run Pipeline:', error);
+            throw error;
+        }
+    }
 
+    function createPipelineStatusBadge(queueStatus) {
+        const statusBadge = document.createElement('span');
+        statusBadge.style.marginLeft = '8px';
+        statusBadge.style.fontWeight = 'bold';
+        updatePipelineStatusBadge(statusBadge, queueStatus);
+        return statusBadge;
+    }
+
+    function updatePipelineStatusBadge(statusBadge, queueStatus) {
+        const isDisabled = queueStatus === 'disabled';
+        statusBadge.textContent = isDisabled ? '[Disabled]' : '[Enabled]';
+        statusBadge.style.color = isDisabled ? 'red' : 'green';
     }
 
  async function createPipeline(pat, projectId, repoId, formData) {
@@ -405,8 +446,10 @@ if (formData.projectType === 'legacy') {
             labelCell.textContent = '';
         }
         labelCell.style.width = '80px';
+
         const valueCell = document.createElement('td');
-	valueCell.style.width = '350px';
+        valueCell.style.width = '350px';
+
         const repoLink = document.createElement('a');
         repoLink.href = repo.remoteUrl;
         repoLink.target = "_blank";
@@ -414,81 +457,115 @@ if (formData.projectType === 'legacy') {
         valueCell.appendChild(repoLink);
         tableRepoRow.appendChild(labelCell);
         tableRepoRow.appendChild(valueCell);
-        
-	const valueCell2 = document.createElement('td');
-	const sanitizedRepoName = repo.name.replace(/[\s_@#\$%\^&\*!]/g, '-');
 
-	const matchingPipeline = pipelines.value.find(pipeline => 
-    		["CI_GHAS_", "CI_FE_GHAS_", "CI_LE_GHAS_"].some(prefix => pipeline.name === prefix + sanitizedRepoName)
-	);
+        const valueCell2 = document.createElement('td');
+        const sanitizedRepoName = repo.name.replace(/[\s_@#\$%\^&\*!]/g, '-');
+
+        const matchingPipeline = pipelines.value.find(pipeline =>
+            ["CI_GHAS_", "CI_FE_GHAS_", "CI_LE_GHAS_"].some(prefix => pipeline.name === prefix + sanitizedRepoName)
+        );
 
         if (!matchingPipeline) {
-		renderCreatePipelineForm(repo, valueCell2, pat, projectId, targetId);
-	} else{
-		const ciLink = document.createElement('a');
-        	ciLink.href = `https://dev.azure.com/itbinus/${projectId}/_build?view=folders`;
-        	ciLink.target = "_blank";
-        	ciLink.textContent = `${matchingPipeline.name} - ${matchingPipeline.id}`;        
-		valueCell2.appendChild(ciLink);
+            renderCreatePipelineForm(repo, valueCell2, pat, projectId, targetId);
+        } else {
+            const pipelineStatus = matchingPipeline.queueStatus || 'enabled';
 
-		const runIcon = document.createElement('a');
-        	runIcon.href = "#"; 
-        	runIcon.innerHTML = ' 🚀';
-        	runIcon.style.cursor = "pointer";
+            const ciLink = document.createElement('a');
+            ciLink.href = `https://dev.azure.com/itbinus/${projectId}/_build?view=folders`;
+            ciLink.target = "_blank";
+            ciLink.textContent = `${matchingPipeline.name} - ${matchingPipeline.id}`;
+            valueCell2.appendChild(ciLink);
 
-        	runIcon.addEventListener("click", async function (event) {
-            		event.preventDefault(); 
+            const statusBadge = createPipelineStatusBadge(pipelineStatus);
+            valueCell2.appendChild(statusBadge);
 
-            		try {
-                		const runResult = await runPipeline(pat, projectId, matchingPipeline.id);
-               	 		runIcon.remove();
-            		} catch (error) {
-                		console.error("Pipeline execution failed:", error);
-            		}
-        	});
+            let runIcon = null;
+            if (pipelineStatus !== 'disabled') {
+                runIcon = document.createElement('a');
+                runIcon.href = "#";
+                runIcon.innerHTML = ' 🚀';
+                runIcon.style.cursor = "pointer";
 
-        	valueCell2.appendChild(runIcon);
-	}     
+                runIcon.addEventListener("click", async function (event) {
+                    event.preventDefault();
+
+                    try {
+                        await runPipeline(pat, projectId, matchingPipeline.id);
+                        runIcon.remove();
+                    } catch (error) {
+                        console.error("Pipeline execution failed:", error);
+                    }
+                });
+
+                valueCell2.appendChild(runIcon);
+            }
+
+            const disableButton = document.createElement('button');
+            disableButton.type = 'button';
+            disableButton.textContent = pipelineStatus === 'disabled' ? 'Pipeline Disabled' : 'Disable Pipeline';
+            disableButton.disabled = pipelineStatus === 'disabled';
+            disableButton.style.marginLeft = '10px';
+
+            disableButton.addEventListener('click', async function () {
+                try {
+                    await updatePipelineQueueStatus(pat, projectId, matchingPipeline.id, 'disabled');
+                    matchingPipeline.queueStatus = 'disabled';
+                    updatePipelineStatusBadge(statusBadge, 'disabled');
+                    disableButton.textContent = 'Pipeline Disabled';
+                    disableButton.disabled = true;
+
+                    if (runIcon) {
+                        runIcon.remove();
+                    }
+                } catch (error) {
+                    console.error('Failed to disable pipeline:', error);
+                    alert('Failed to disable pipeline');
+                }
+            });
+
+            valueCell2.appendChild(disableButton);
+        }
+
         tableRepoRow.appendChild(valueCell2);
         table.appendChild(tableRepoRow);
     }
 
-async function renderCreatePipelineForm(repo, listItem, pat, projectId, targetId) {
-    const ciFormTemplate = document.getElementById('ciFormTemplate').cloneNode(true);
-    ciFormTemplate.classList.remove('ciForm');
-    listItem.appendChild(ciFormTemplate);
+    async function renderCreatePipelineForm(repo, listItem, pat, projectId, targetId) {
+        const ciFormTemplate = document.getElementById('ciFormTemplate').cloneNode(true);
+        ciFormTemplate.classList.remove('ciForm');
+        listItem.appendChild(ciFormTemplate);
 
-    const createPipelineForm = ciFormTemplate;
-    const projectFolderInput = createPipelineForm.querySelector('#projectFolder');
-    projectFolderInput.value = repo.name.replace(/[\s_@#\$%\^&\*!]/g, '-');
-    const branchSelect = createPipelineForm.querySelector('#branch');
-    const formContainer = createPipelineForm.querySelector('.formContainer');
-    const showFormLink = createPipelineForm.querySelector('.showFormLink');
+        const createPipelineForm = ciFormTemplate;
+        const projectFolderInput = createPipelineForm.querySelector('#projectFolder');
+        projectFolderInput.value = repo.name.replace(/[\s_@#\$%\^&\*!]/g, '-');
+        const branchSelect = createPipelineForm.querySelector('#branch');
+        const formContainer = createPipelineForm.querySelector('.formContainer');
+        const showFormLink = createPipelineForm.querySelector('.showFormLink');
 
-    showFormLink.addEventListener('click', function(event) {
-        event.preventDefault();
-        formContainer.style.display = formContainer.style.display === 'none' ? 'block' : 'none';
-    });
+        showFormLink.addEventListener('click', function(event) {
+            event.preventDefault();
+            formContainer.style.display = formContainer.style.display === 'none' ? 'block' : 'none';
+        });
 
 
-    // Load branches and populate the branch select options
-    const branches = await getBranches(projectId, repo.id, pat);
-    branches.value.forEach(branch => {
-        const option = document.createElement('option');
-        option.value = branch.name;
-        option.textContent = branch.name;
-        branchSelect.appendChild(option);
-    });
+        // Load branches and populate the branch select options
+        const branches = await getBranches(projectId, repo.id, pat);
+        branches.value.forEach(branch => {
+            const option = document.createElement('option');
+            option.value = branch.name;
+            option.textContent = branch.name;
+            branchSelect.appendChild(option);
+        });
 
-    // Show form container on link click
-    showFormLink.addEventListener('click', function(event) {
-        event.preventDefault();
-        formContainer.style.display = 'block';
-        showFormLink.style.display = 'none';
-    });
+        // Show form container on link click
+        showFormLink.addEventListener('click', function(event) {
+            event.preventDefault();
+            formContainer.style.display = 'block';
+            showFormLink.style.display = 'none';
+        });
 
-    createPipelineForm.addEventListener('submit', async function(event) {
-        event.preventDefault();
+        createPipelineForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
 	const projectType = createPipelineForm.querySelector('#projectType').value;
 
 	const pipelinePrefixes = {

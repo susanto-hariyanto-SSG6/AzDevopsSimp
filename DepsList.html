@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Azure DevOps Repo Scanner</title>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  input { width: 350px; margin: 5px; padding: 5px; }
+  ul { margin-left: 20px; }
+  .bad { color: red; }
+  .good { color: green; }
+  .review { color: orange; }
+  .hidden { display: none; }
+  code { background: #f4f4f4; padding: 1px 4px; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+  th { position: sticky; top: 0; background: #fafafa; }
+  .pill { padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; display: inline-block; }
+</style>
+</head>
+<body>
+
+<h2>Azure DevOps Repo Scanner</h2>
+
+<input id="org" value="itbinus" placeholder="Organization (e.g. myorg)"><br>
+<input id="pat" type="password" placeholder="Personal Access Token (PAT)"><br>
+
+<label>
+  <input type="checkbox" id="hideNoPackage" onchange="toggleHide()">
+  Hide repos without package.json / .NET info
+</label>
+<br>
+<label>
+  <input type="checkbox" id="hideGood" onchange="toggleHide()">
+  Hide good (✔️) repos
+</label>
+<br>
+<label>
+  <input type="checkbox" id="excludeShared" checked>
+  Exclude shared projects from scan
+</label>
+<br>
+<label>
+  Filter text:
+  <input id="textFilter" placeholder="type keyword (repo/project/version/status...)" oninput="onTextFilterChanged()">
+</label>
+<br>
+
+<button onclick="loadProjects()">Start Scan</button>
+
+<div id="output"></div>
+
+<!-- Dashboard container -->
+<div id="dashboard"></div>
+
+<script>
+const BRANCH_PRIORITY = ["production", "prod", "prd", "master", "main"];
+
+// ===== RESULTS STORE (for dashboard) =====
+const scanResults = [];              // array of normalized rows
+const scanResultIndex = new Map();   // key -> index (for upsert)
+
+function makeKey(org, projectId, repoId) {
+  return `${org}::${projectId}::${repoId}`;
+}
+
+function upsertScanResult(partial) {
+  const key = makeKey(partial.org, partial.projectId, partial.repoId);
+  const now = new Date().toISOString();
+
+  if (!scanResultIndex.has(key)) {
+    const row = {
+      org: partial.org,
+      projectId: partial.projectId,
+      projectName: partial.projectName,
+      repoId: partial.repoId,
+      repoName: partial.repoName,
+
+      branch: partial.branch || "",
+      kind: partial.kind || "unknown", // "node" | "dotnet" | "unknown"
+
+      packageJsonPath: partial.packageJsonPath || "",
+      csprojPath: partial.csprojPath || "",
+
+      reactVersion: partial.reactVersion || "",
+      reactNativeVersion: partial.reactNativeVersion || "",
+      nextVersion: partial.nextVersion || "",
+      axiosVersion: partial.axiosVersion || "",
+
+      netTfms: partial.netTfms || [],
+      wsPatternVersion: partial.wsPatternVersion || "",
+
+      status: partial.status || "unknown", // scanning|good|review|bad|no-branch|missing|error
+      notes: partial.notes || "",
+      timestamp: partial.timestamp || now
+    };
+
+    scanResultIndex.set(key, scanResults.length);
+    scanResults.push(row);
+  } else {
+    const idx = scanResultIndex.get(key);
+    const existing = scanResults[idx];
+
+    scanResults[idx] = {
+      ...existing,
+      ...partial,
+      netTfms: partial.netTfms ?? existing.netTfms,
+      timestamp: partial.timestamp || now
+    };
+  }
+}
+
+// Simple dashboard renderer (table + summary + downloads)
+function renderDashboard(containerId = "dashboard") {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+
+  const counts = scanResults.reduce((acc, r) => {
+    acc.total++;
+    acc[r.status] = (acc[r.status] || 0) + 1;
+    acc.kind[r.kind] = (acc.kind[r.kind] || 0) + 1;
+    return acc;
+  }, { total: 0, kind: {} });
+
+  const filterText = (document.getElementById("textFilter")?.value || "").trim().toLowerCase();
+
+  const rowsAll = scanResults.slice().sort((a, b) =>
+    (a.projectName || "").localeCompare(b.projectName || "") ||
+    (a.repoName || "").localeCompare(b.repoName || "")
+  );
+
+  const rows = !filterText ? rowsAll : rowsAll.filter(r => {
+    const haystack = [
+      r.org, r.projectName, r.repoName, r.kind, r.branch,
+      r.reactVersion, r.reactNativeVersion, r.nextVersion, r.axiosVersion,
+      (r.netTfms || []).join("; "), r.wsPatternVersion, r.status, r.notes
+    ].join(" ").toLowerCase();
+
+    return haystack.includes(filterText);
+  });
+
+  let html = `
+    <div style="margin-top:16px;">
+      <h3>Dashboard</h3>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <span class="pill">Total: <b>${counts.total}</b></span>
+        <span class="pill">Showing: <b>${rows.length}</b></span>
+        <span class="pill">Scanning: <b>${counts.scanning || 0}</b></span>
+        <span class="pill">Good: <b>${counts.good || 0}</b></span>
+        <span class="pill">Review: <b>${counts.review || 0}</b></span>
+        <span class="pill">Bad: <b>${counts.bad || 0}</b></span>
+        <span class="pill">Missing: <b>${counts.missing || 0}</b></span>
+        <span class="pill">No-branch: <b>${counts["no-branch"] || 0}</b></span>
+        <span class="pill">Error: <b>${counts.error || 0}</b></span>
+        <span class="pill">Node: <b>${counts.kind.node || 0}</b></span>
+        <span class="pill">Dotnet: <b>${counts.kind.dotnet || 0}</b></span>
+      </div>
+
+      <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button onclick="renderDashboard()">Refresh Dashboard</button>
+        <button onclick="downloadResultsJson()">Download JSON</button>
+        <button onclick="downloadResultsCsv()">Download CSV</button>
+      </div>
+
+      <div style="overflow:auto; max-height: 520px; border:1px solid #ddd; margin-top:10px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Repo</th>
+              <th>Kind</th>
+              <th>Branch</th>
+              <th>React</th>
+              <th>React Native</th>
+              <th>Next</th>
+              <th>TFM(s)</th>
+              <th>WS.Pattern</th>
+              <th>Status</th>
+              <th>Notes</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+
+  for (const r of rows) {
+    html += `
+      <tr>
+        <td>${esc(r.projectName)}</td>
+        <td>${esc(r.repoName)}</td>
+        <td>${esc(r.kind)}</td>
+        <td>${esc(r.branch)}</td>
+        <td>${esc(r.reactVersion)}</td>
+        <td>${esc(r.reactNativeVersion)}</td>
+        <td>${esc(r.nextVersion)}</td>
+        <td>${esc((r.netTfms || []).join("; "))}</td>
+        <td>${esc(r.wsPatternVersion)}</td>
+        <td>${esc(r.status)}</td>
+        <td>${esc(r.notes)}</td>
+        <td>${esc(r.timestamp)}</td>
+      </tr>
+    `;
+  }
+
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  el.innerHTML = html;
+}
+
+function downloadResultsJson() {
+  const blob = new Blob([JSON.stringify(scanResults, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "scan-results.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadResultsCsv() {
+  const headers = [
+    "org","projectName","repoName","kind","branch",
+    "reactVersion","reactNativeVersion","nextVersion",
+    "netTfms","wsPatternVersion","status","notes","timestamp"
+  ];
+
+  const escCsv = v => {
+    const s = String(v ?? "");
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const lines = [];
+  lines.push(headers.join(","));
+  for (const r of scanResults) {
+    const row = [
+      r.org, r.projectName, r.repoName, r.kind, r.branch,
+      r.reactVersion, r.reactNativeVersion, r.nextVersion,
+      (r.netTfms || []).join(";"),
+      r.wsPatternVersion, r.status, r.notes, r.timestamp
+    ].map(escCsv);
+    lines.push(row.join(","));
+  }
+
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "scan-results.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ===== UTIL =====
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+async function randomDelay() {
+  const delay = 30 + Math.floor(Math.random() * 200); // 30–230ms
+  await sleep(delay);
+}
+
+function authHeader() {
+  const pat = document.getElementById("pat").value;
+  return { "Authorization": "Basic " + btoa(":" + pat) };
+}
+
+function toggleHide() {
+  const hideNoPackage = document.getElementById("hideNoPackage").checked;
+  const hideGood      = document.getElementById("hideGood").checked;
+  const filterText    = (document.getElementById("textFilter")?.value || "").trim().toLowerCase();
+
+  const repoLis = document.querySelectorAll('li[id^="item-"]');
+
+  repoLis.forEach(li => {
+    li.style.display = "";
+
+    if (hideNoPackage && li.classList.contains("no-package")) {
+      li.style.display = "none";
+      return;
+    }
+
+    if (hideGood && li.querySelector(".good")) {
+      li.style.display = "none";
+      return;
+    }
+
+    if (filterText) {
+      const haystack = (li.textContent || "").toLowerCase();
+      if (!haystack.includes(filterText)) {
+        li.style.display = "none";
+        return;
+      }
+    }
+  });
+
+  const projectUls = document.querySelectorAll('ul[id^="proj-"]');
+  projectUls.forEach(ul => {
+    const projectLi = ul.parentElement;
+    const repoChildren = Array.from(ul.children).filter(x => x.tagName === "LI");
+    const hasVisibleRepo = repoChildren.some(child => child.style.display !== "none");
+    projectLi.style.display = hasVisibleRepo ? "" : "none";
+  });
+}
+
+let projectObserver;
+let cachedOrg = "";
+
+async function loadProjects() {
+  // reset dashboard state each run
+  scanResults.length = 0;
+  scanResultIndex.clear();
+  renderDashboard();
+
+  const org = document.getElementById("org").value;
+  const output = document.getElementById("output");
+  cachedOrg = org;
+
+  output.innerHTML = "<p>Loading projects...</p>";
+
+  const url = `https://dev.azure.com/${org}/_apis/projects?api-version=7.0`;
+  const res = await fetch(url, { headers: authHeader() });
+  const data = await res.json();
+
+  if (!data.value) {
+    output.innerHTML = "<p>Error loading projects.</p>";
+    return;
+  }
+
+  let html = "<ul>";
+  for (const project of data.value) {
+    html += `
+      <li class="project-item"
+          data-project-id="${project.id}"
+          data-project-name="${project.name}">
+        <b>${project.name}</b>
+        <ul id="proj-${project.id}">
+          <li class="placeholder">Scroll here to load repos…</li>
+        </ul>
+      </li>
+    `;
+  }
+  html += "</ul>";
+  output.innerHTML = html;
+
+  setupProjectObserver();
+}
+
+function setupProjectObserver() {
+  if (projectObserver) projectObserver.disconnect();
+
+  const options = { root: null, rootMargin: "0px", threshold: 0.1 };
+
+  projectObserver = new IntersectionObserver(async (entries, observer) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+
+      const li = entry.target;
+      if (li.dataset.loaded === "true") continue;
+
+      li.dataset.loaded = "true";
+
+      const projectId = li.dataset.projectId;
+      const projectName = li.dataset.projectName;
+
+      await loadRepos(cachedOrg, { id: projectId, name: projectName });
+      observer.unobserve(li);
+    }
+  }, options);
+
+  document.querySelectorAll(".project-item").forEach(li => projectObserver.observe(li));
+}
+
+async function loadRepos(org, project) {
+  const excludeShared = document.getElementById("excludeShared").checked;
+
+  const EXCLUDED_PROJECTS = [
+  "EDM-WebServices-Ticket",
+  "EDM-WebServices-Research",
+  "SSG3-C1-AcademicServices",
+  "Github_Advanced_Security_Research",
+  "SSG4-C1-BM7-MyDashboard",
+  "EDM-DBA_Database_CI-CD"
+  ];
+  
+  // Skip this project if it's in the exclusion list
+  if (excludeShared && EXCLUDED_PROJECTS.includes(project.name)) {
+    console.log(`Skipping excluded project: ${project.name}`);
+    return;
+  }
+
+  const url = `https://dev.azure.com/${org}/${project.id}/_apis/git/repositories?api-version=7.0`;
+  const res = await fetch(url, { headers: authHeader() });
+  const data = await res.json();
+
+  let html = "";
+  for (const repo of (data.value || [])) {
+    const repoListId = `repo-${repo.id}`;
+    html += `<li id="item-${repo.id}">${repo.name}<ul id="${repoListId}"><li>Checking branches...</li></ul></li>`;
+
+    // create placeholder row for dashboard
+    upsertScanResult({
+      org,
+      projectId: project.id,
+      projectName: project.name,
+      repoId: repo.id,
+      repoName: repo.name,
+      status: "scanning",
+      notes: "Queued"
+    });
+    renderDashboard();
+
+    findBranchAndScan(org, project, repo, repoListId);
+  }
+  document.getElementById(`proj-${project.id}`).innerHTML = html;
+}
+
+async function findBranchAndScan(org, project, repo, repoListId) {
+  const url = `https://dev.azure.com/${org}/${project.id}/_apis/git/repositories/${repo.id}/refs?filter=heads/&api-version=7.0`;
+  const res = await fetch(url, { headers: authHeader() });
+  const data = await res.json();
+
+  const branches = (data.value || []).map(b => b.name.replace("refs/heads/", ""));
+
+  let selectedBranch = null;
+  for (const b of BRANCH_PRIORITY) {
+    if (branches.includes(b)) {
+      selectedBranch = b;
+      break;
+    }
+  }
+
+  if (!selectedBranch) {
+    upsertScanResult({
+      org,
+      projectId: project.id,
+      projectName: project.name,
+      repoId: repo.id,
+      repoName: repo.name,
+      status: "no-branch",
+      notes: "No branch from priority list found"
+    });
+    renderDashboard();
+
+    markNoPackage(repoListId, repo.id, "No valid branch found");
+    return;
+  }
+
+  scanRepo(org, project, repo, selectedBranch, repoListId);
+}
+
+async function scanRepo(org, project, repo, branch, repoListId) {
+  const baseRepoUrl = `https://dev.azure.com/${org}/${project.id}/_apis/git/repositories/${repo.id}`;
+  const headers = authHeader();
+
+  const hasDotNet = await repoHasDotNetFiles(baseRepoUrl, branch, headers);
+  if (hasDotNet) {
+    await scanDotNetRepo(org, project, repo, baseRepoUrl, branch, headers, repoListId);
+    return;
+  }
+
+  await scanPackageJson(org, project, repo, baseRepoUrl, branch, headers, repoListId);
+}
+
+// -------------------- PACKAGE.JSON SCAN --------------------
+
+async function scanPackageJson(org, project, repo, baseRepoUrl, branch, headers, repoListId) {
+  async function fetchAndParsePackageJson(path) {
+    const url = `${baseRepoUrl}/items?path=${encodeURIComponent(path)}&versionDescriptor.version=${encodeURIComponent(branch)}&api-version=7.0`;
+    await randomDelay();
+    const res = await fetch(url, { headers });
+
+    if (res.status === 404) return { ok: false, reason: "404" };
+    if (!res.ok) return { ok: false, reason: `status ${res.status}` };
+
+    const text = await res.text();
+    let parsed;
+    try { parsed = JSON.parse(text); }
+    catch { return { ok: false, reason: "invalid-json" }; }
+
+    return { ok: true, parsed, path };
+  }
+
+  let result = await fetchAndParsePackageJson("/package.json");
+
+  if (!result.ok && result.reason === "404") {
+    const nestedPath = await findFirstLevelPackageJsonPath(baseRepoUrl, branch, headers);
+    if (!nestedPath) {
+      upsertScanResult({
+        org, projectId: project.id, projectName: project.name,
+        repoId: repo.id, repoName: repo.name,
+        branch, kind: "node", status: "missing",
+        notes: `No package.json in root or first folder layer`
+      });
+      renderDashboard();
+
+      markNoPackage(repoListId, repo.id,
+        `No <code>package.json</code> in root or first folder layer in branch <b>${branch}</b>`
+      );
+      return;
+    }
+
+    result = await fetchAndParsePackageJson(nestedPath);
+    if (!result.ok) {
+      upsertScanResult({
+        org, projectId: project.id, projectName: project.name,
+        repoId: repo.id, repoName: repo.name,
+        branch, kind: "node", status: "error",
+        notes: `Found package.json at ${nestedPath} but could not read (${result.reason})`
+      });
+      renderDashboard();
+
+      markNoPackage(repoListId, repo.id,
+        `Found <code>package.json</code> at <code>${nestedPath}</code> but could not read it (${result.reason})`
+      );
+      return;
+    }
+  } else if (!result.ok) {
+    upsertScanResult({
+      org, projectId: project.id, projectName: project.name,
+      repoId: repo.id, repoName: repo.name,
+      branch, kind: "node", status: "error",
+      notes: `Error fetching package.json (${result.reason})`
+    });
+    renderDashboard();
+
+    markNoPackage(repoListId, repo.id,
+      `Error fetching <code>package.json</code> from <b>${branch}</b> (${result.reason})`
+    );
+    return;
+  }
+
+  const parsed = result.parsed;
+  const actualPath = result.path;
+
+  const deps    = parsed.dependencies || {};
+  const devDeps = parsed.devDependencies || {};
+
+  const reactVersion       = (deps.react || devDeps.react || "").trim();
+  const reactNativeVersion = (deps["react-native"] || devDeps["react-native"] || "").trim();
+  const nextVersion        = (deps.next  || devDeps.next  || "").trim();
+  const axiosVersion       = (deps.axios || devDeps.axios || "").trim();
+
+  const content = JSON.stringify(parsed);
+
+  const hasBad =
+    content.includes("react-server") ||
+    nextVersion.startsWith("^14") || nextVersion.startsWith("^15") || nextVersion.startsWith("^16") ||
+    nextVersion.startsWith("14")  || nextVersion.startsWith("15")  || nextVersion.startsWith("16")  ||
+    reactVersion.startsWith("19") || reactVersion.startsWith("^19") ||
+    axiosVersion === "1.14.1" || axiosVersion === "0.30.4";
+
+  const hasReview =
+    !hasBad && (
+      nextVersion !== "" ||
+      reactNativeVersion !== "" ||
+      content.includes("-server-")
+    );
+
+  const emoji = hasBad ? "❌" : (hasReview ? "🧐" : "✔️");
+  const cls   = hasBad ? "bad" : (hasReview ? "review" : "good");
+
+  const versionParts = [];
+  if (reactVersion)       versionParts.push(`React: ${reactVersion}`);
+  if (reactNativeVersion) versionParts.push(`RN: ${reactNativeVersion}`);
+  if (nextVersion)        versionParts.push(`Next: ${nextVersion}`);
+  if (axiosVersion)       versionParts.push(`Axios: ${axiosVersion}`);
+
+  const versionInfo = versionParts.length
+    ? ` — <small>${versionParts.join(" | ")}</small>`
+    : "";
+
+  const prettyPath = actualPath.replace(/^\//, "");
+  const downloadLink = `${baseRepoUrl}/items?path=${encodeURIComponent(actualPath)}&versionDescriptor.version=${encodeURIComponent(branch)}&api-version=7.0&download=true`;
+
+  // update dashboard row
+  upsertScanResult({
+    org,
+    projectId: project.id,
+    projectName: project.name,
+    repoId: repo.id,
+    repoName: repo.name,
+    branch,
+    kind: "node",
+    packageJsonPath: actualPath,
+    reactVersion,
+    reactNativeVersion,
+    nextVersion,
+    axiosVersion,
+    status: cls === "good" ? "good" : (cls === "bad" ? "bad" : "review"),
+    notes: ""
+  });
+  renderDashboard();
+
+  document.getElementById(repoListId).innerHTML =
+    `<li>
+      Branch: <b>${branch}</b> —
+      <code>${prettyPath}</code> —
+      <a href="${downloadLink}" target="_blank">download</a>
+      ${versionInfo}
+      <span class="${cls}">${emoji}</span>
+    </li>`;
+}
+
+async function findFirstLevelPackageJsonPath(baseRepoUrl, branch, headers) {
+  const url = `${baseRepoUrl}/items?scopePath=/&recursionLevel=full&includeContentMetadata=true&versionDescriptor.version=${encodeURIComponent(branch)}&api-version=7.0`;
+  await randomDelay();
+  const res = await fetch(url, { headers });
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  if (!data.value) return null;
+
+  const candidate = data.value.find(item => {
+    if (item.isFolder) return false;
+    if (!item.path.endsWith("/package.json")) return false;
+    const parts = item.path.split("/");
+    return parts.length === 3;
+  });
+
+  return candidate ? candidate.path : null;
+}
+
+// -------------------- .NET SCAN --------------------
+
+async function repoHasDotNetFiles(baseRepoUrl, branch, headers) {
+  const url = `${baseRepoUrl}/items?scopePath=/&recursionLevel=OneLevel&versionDescriptor.version=${encodeURIComponent(branch)}&api-version=7.0`;
+  await randomDelay();
+  const res = await fetch(url, { headers });
+  if (!res.ok) return false;
+
+  const data = await res.json();
+  if (!data.value) return false;
+
+  return data.value.some(item =>
+    item.path.endsWith(".csproj") ||
+    item.path.endsWith(".sln")
+  );
+}
+
+async function scanDotNetRepo(org, project, repo, baseRepoUrl, branch, headers, repoListId) {
+  const csprojPaths = await findCsprojPaths(baseRepoUrl, branch, headers);
+
+  if (!csprojPaths.length) {
+    upsertScanResult({
+      org, projectId: project.id, projectName: project.name,
+      repoId: repo.id, repoName: repo.name,
+      branch, kind: "dotnet", status: "missing",
+      notes: "Detected .NET repo but no .csproj found"
+    });
+    renderDashboard();
+
+    markNoPackage(repoListId, repo.id,
+      `Detected .NET repo but no <code>.csproj</code> found.`
+    );
+    return;
+  }
+
+  let best = { tfms: [], wsPatternVersion: "", path: "" };
+
+  for (const path of csprojPaths) {
+    const xml = await fetchFileText(baseRepoUrl, branch, headers, path);
+    if (!xml) continue;
+
+    const tfms = extractTargetFrameworks(xml);
+    const ws   = extractWsPatternVersion(xml);
+
+    if ((tfms.length || ws) && !best.path) {
+      best = { tfms, wsPatternVersion: ws, path };
+      break;
+    }
+
+    if (tfms.length && !best.tfms.length) {
+      best = { tfms, wsPatternVersion: ws, path };
+    }
+  }
+
+  const prettyPath = best.path ? best.path.replace(/^\//, "") : "(unknown)";
+
+  const parts = [];
+  if (best.tfms.length) parts.push(`TFM: ${best.tfms.join(", ")}`);
+  if (best.wsPatternVersion) parts.push(`WS.Pattern: ${best.wsPatternVersion}`);
+
+  const info = parts.length ? ` — <small>${parts.join(" | ")}</small>` : "";
+
+  const emoji = parts.length ? "✔️" : "🧐";
+  const cls   = parts.length ? "good" : "review";
+
+  const downloadLink = best.path
+    ? `${baseRepoUrl}/items?path=${encodeURIComponent(best.path)}&versionDescriptor.version=${encodeURIComponent(branch)}&api-version=7.0&download=true`
+    : "";
+
+  const downloadHtml = downloadLink
+    ? ` — <a href="${downloadLink}" target="_blank">download</a>`
+    : "";
+
+  // update dashboard row
+  upsertScanResult({
+    org,
+    projectId: project.id,
+    projectName: project.name,
+    repoId: repo.id,
+    repoName: repo.name,
+    branch,
+    kind: "dotnet",
+    csprojPath: best.path,
+    netTfms: best.tfms,
+    wsPatternVersion: best.wsPatternVersion,
+    status: (best.tfms.length || best.wsPatternVersion) ? "good" : "review",
+    notes: ""
+  });
+  renderDashboard();
+
+  document.getElementById(repoListId).innerHTML =
+    `<li>
+      Branch: <b>${branch}</b> —
+      <code>${prettyPath}</code>
+      ${downloadHtml}
+      ${info}
+      <span class="${cls}">${emoji}</span>
+    </li>`;
+}
+
+async function findCsprojPaths(baseRepoUrl, branch, headers) {
+  const url = `${baseRepoUrl}/items?scopePath=/&recursionLevel=OneLevel&versionDescriptor.version=${encodeURIComponent(branch)}&api-version=7.0`;
+  await randomDelay();
+  const res = await fetch(url, { headers });
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  if (!data.value) return [];
+
+  const rootCsproj = data.value
+    .filter(x => !x.isFolder && x.path.endsWith(".csproj"))
+    .map(x => x.path);
+
+  const rootFolders = data.value.filter(x => x.isFolder).map(x => x.path);
+
+  const nested = [];
+  for (const folderPath of rootFolders) {
+    const u = `${baseRepoUrl}/items?scopePath=${encodeURIComponent(folderPath)}&recursionLevel=OneLevel&versionDescriptor.version=${encodeURIComponent(branch)}&api-version=7.0`;
+    await randomDelay();
+    const r = await fetch(u, { headers });
+    if (!r.ok) continue;
+
+    const d = await r.json();
+    if (!d.value) continue;
+
+    d.value
+      .filter(x => !x.isFolder && x.path.endsWith(".csproj"))
+      .forEach(x => nested.push(x.path));
+  }
+
+  return Array.from(new Set([...rootCsproj, ...nested]));
+}
+
+async function fetchFileText(baseRepoUrl, branch, headers, path) {
+  const url = `${baseRepoUrl}/items?path=${encodeURIComponent(path)}&versionDescriptor.version=${encodeURIComponent(branch)}&api-version=7.0`;
+  await randomDelay();
+  const res = await fetch(url, { headers });
+  if (!res.ok) return null;
+  return await res.text();
+}
+
+function extractTargetFrameworks(xmlText) {
+  const single = xmlText.match(/<TargetFramework>\s*([^<]+)\s*<\/TargetFramework>/i);
+  if (single && single[1]) return [single[1].trim()];
+
+  const multi = xmlText.match(/<TargetFrameworks>\s*([^<]+)\s*<\/TargetFrameworks>/i);
+  if (multi && multi[1]) {
+    return multi[1].split(";").map(x => x.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function extractWsPatternVersion(xmlText) {
+  const attr = xmlText.match(/<PackageReference[^>]*Include\s*=\s*["']Binus\.WS\.Pattern["'][^>]*Version\s*=\s*["']([^"']+)["'][^>]*\/?>/i);
+  if (attr && attr[1]) return attr[1].trim();
+
+  const block = xmlText.match(/<PackageReference[^>]*Include\s*=\s*["']Binus\.WS\.Pattern["'][^>]*>([\s\S]*?)<\/PackageReference>/i);
+  if (block && block[1]) {
+    const v = block[1].match(/<Version>\s*([^<]+)\s*<\/Version>/i);
+    if (v && v[1]) return v[1].trim();
+  }
+
+  return "";
+}
+
+// -------------------- MARK NO PACKAGE / HELPERS --------------------
+
+function markNoPackage(repoListId, repoId, message) {
+  const el = document.getElementById(`item-${repoId}`);
+  if (el) el.classList.add("no-package");
+
+  const hide = document.getElementById("hideNoPackage").checked;
+  if (hide && el) el.style.display = "none";
+
+  const target = document.getElementById(repoListId);
+  if (target) target.innerHTML = `<li>${message}</li>`;
+}
+
+function extractRepoIdFromRepoListId(repoListId) {
+  return (repoListId || "").replace(/^repo-/, "");
+}
+</script>
+</body>
+</html>
+
