@@ -125,6 +125,7 @@
         }
 
         currentPat = pat;
+        sessionStorage.setItem('ado_pat', pat);
 
         try {
             const projectListElement = document.getElementById('projectList');
@@ -356,8 +357,8 @@
             if (findings.value && findings.value.length > 0) {
                 findings.value.forEach(finding => {
                     const tag = document.createElement('a');
-                    tag.target = 'ghasVul';
-                    tag.href = `https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/${sanitizedRepoName}/alerts/${finding.alertId}?branch=refs/heads/master`;
+                    tag.target = '_blank';
+                    tag.href = `./GHASCodeViewer.html?alertId=${encodeURIComponent(finding.alertId)}&repo=${encodeURIComponent(repoName)}&repoKey=${encodeURIComponent(sanitizedRepoName)}#pat=${encodeURIComponent(currentPat)}`;
 
                     const type = finding.alertType === 'code' ? 'CODE' : (finding.alertType === 'dependency' ? 'DEPS' : finding.alertType);
                     const state = finding.state === 'active' ? '🔳' : (finding.state === 'fixed' ? '✅' : (finding.state === 'dismissed' ? '❎' : finding.state));
@@ -365,10 +366,18 @@
 
                     const titleSpan = document.createElement('span');
                     titleSpan.className = 'finding-title';
-                    titleSpan.textContent = `${state}${sever}${type} ${finding.title}`;
+
+                    const taxonomy = getPrimarySecurityTagFromRules(finding);
+                    const primaryTagPrefix = taxonomy.primary ? `[${taxonomy.primary}] ` : '';
+                    titleSpan.textContent = `${state}${sever}${type} ${primaryTagPrefix}${finding.title}`;
 
                     tag.className = `findings ${finding.severity} ${finding.state}`;
                     tag.appendChild(titleSpan);
+
+                    const taxonomySpan = document.createElement('span');
+                    taxonomySpan.className = 'finding-location';
+                    taxonomySpan.textContent = `CVE: ${taxonomy.cve.join(', ') || '-'} | CWE: ${taxonomy.cwe.join(', ') || '-'}`;
+                    tag.appendChild(taxonomySpan);
 
                     const locationText = getFindingLocationText(finding);
                     if (locationText) {
@@ -432,7 +441,92 @@
 
         return parts.join(', ');
     }
-    
+
+    function getPrimarySecurityTagFromRules(finding) {
+        const cve = [];
+        const cwe = [];
+        const seenCve = new Set();
+        const seenCwe = new Set();
+        const rawTags = [];
+
+        const pushTags = (v) => {
+            if (!v) return;
+            if (Array.isArray(v)) {
+                rawTags.push(...v);
+            } else {
+                rawTags.push(v);
+            }
+        };
+
+        // 1) Preferred shape: finding.tools[].rules[].tag / tags
+        if (Array.isArray(finding?.tools)) {
+            for (const tool of finding.tools) {
+                if (!Array.isArray(tool?.rules)) continue;
+                for (const rule of tool.rules) {
+                    pushTags(rule?.tag);
+                    pushTags(rule?.tags);
+                    pushTags(rule?.properties?.tag);
+                    pushTags(rule?.properties?.tags);
+                }
+            }
+        }
+
+        // 2) Existing/fallback shapes
+        if (Array.isArray(finding?.rules)) {
+            for (const rule of finding.rules) {
+                pushTags(rule?.tag);
+                pushTags(rule?.tags);
+                pushTags(rule?.properties?.tag);
+                pushTags(rule?.properties?.tags);
+            }
+        }
+        if (finding?.rule && typeof finding.rule === 'object') {
+            pushTags(finding.rule?.tag);
+            pushTags(finding.rule?.tags);
+            pushTags(finding.rule?.properties?.tag);
+            pushTags(finding.rule?.properties?.tags);
+        }
+
+        // 3) Last fallback
+        pushTags(finding?.tags);
+        pushTags(finding?.properties?.tags);
+
+        for (const t of rawTags) {
+            const text = typeof t === 'string'
+                ? t
+                : (t?.name || t?.id || t?.value || JSON.stringify(t) || '');
+
+            if (!text) continue;
+            const up = text.toUpperCase();
+
+            // supports CVE-2024-1234, CVE_2024_1234, CVE:2024:1234, etc.
+            const cveMatches = up.match(/CVE[-_:\s]?(\d{4})[-_:\s]?(\d{4,7})/g) || [];
+            const cweMatches = up.match(/CWE[-_:\s]?(\d{1,5})/g) || [];
+
+            for (const m of cveMatches) {
+                const n = m.match(/(\d{4}).*?(\d{4,7})/);
+                if (!n) continue;
+                const id = `CVE-${n[1]}-${n[2]}`;
+                if (!seenCve.has(id)) {
+                    seenCve.add(id);
+                    cve.push(id);
+                }
+            }
+
+            for (const m of cweMatches) {
+                const n = m.match(/(\d{1,5})/);
+                if (!n) continue;
+                const id = `CWE-${n[1]}`;
+                if (!seenCwe.has(id)) {
+                    seenCwe.add(id);
+                    cwe.push(id);
+                }
+            }
+        }
+
+        const primary = cve[0] || cwe[0] || '';
+        return { primary, cve, cwe, rawTags };
+    }
 </script>
 </body>
 </html>

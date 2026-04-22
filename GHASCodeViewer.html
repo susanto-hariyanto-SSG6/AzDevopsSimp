@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GHAS Code Viewer</title>
+    <style>
+        body {
+            font-family: Segoe UI, Arial, sans-serif;
+            margin: 0;
+            background: #f6f8fa;
+            color: #222;
+        }
+
+        .page {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+
+        .title {
+            margin: 0 0 8px 0;
+            font-size: 20px;
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: #eef3ff;
+            color: #1f3b73;
+            border: 1px solid #c9d7ff;
+        }
+
+        .badge.root {
+            background: #fff4e5;
+            color: #8a4b00;
+            border-color: #ffd6a3;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr; /* stack vertically */
+            gap: 16px;
+        }
+
+        .label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .value {
+            margin-bottom: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .code-wrap {
+            background: #0d1117;
+            color: #c9d1d9;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            overflow: hidden; /* keep scroll only in code-view */
+        }
+
+        .code-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid #30363d;
+            background: #161b22;
+            font-size: 13px;
+            color: #8b949e;
+        }
+
+        .code-view {
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            height: 35vh;       /* fixed height */
+            min-height: 260px;
+            overflow: auto;     /* scroll container */
+        }
+
+        .code-line {
+            display: grid;
+            grid-template-columns: 64px minmax(0, 1fr); /* prevent overflow */
+        }
+
+        .line-no {
+            padding: 0 12px;
+            text-align: right;
+            color: #6e7681;
+            user-select: none;
+            border-right: 1px solid #30363d;
+            background: #0d1117;
+        }
+
+        .line-text {
+            padding: 0 12px;
+            white-space: pre-wrap;      /* wrap long lines */
+            overflow-wrap: anywhere;    /* keep inside border */
+            word-break: break-word;
+        }
+
+        .code-line.hit {
+            background: rgba(255, 196, 0, 0.08);
+        }
+
+        .code-line.hit .line-no {
+            background: rgba(255, 196, 0, 0.12);
+            color: #ffd866;
+        }
+
+        .inline-hit {
+            background: #ffd54f;
+            color: #111;
+            border-radius: 2px;
+        }
+
+        .muted {
+            color: #666;
+        }
+
+        details pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #fafafa;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        .tool-card-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .file-stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .file-title {
+            padding: 10px 12px;
+            border-bottom: 1px solid #30363d;
+            background: #161b22;
+            font-size: 13px;
+            color: #8b949e;
+        }
+
+        .code-wrap,
+        .code-view {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div id="status" class="card">Loading...</div>
+
+        <div id="content" style="display:none;">
+            <div class="card">
+                <h1 id="findingTitle" class="title"></h1>
+                <div id="meta" class="meta"></div>
+            </div>
+
+            <div class="grid">
+                <div>
+                    <div id="codeFiles" class="file-stack"></div>
+                </div>
+
+                <div>
+                    <div class="card">
+                        <div class="label">Repository</div>
+                        <div id="repoInfo" class="value"></div>
+
+                        <div class="label">Location</div>
+                        <div id="locationInfo" class="value"></div>
+
+                        <div class="label">Tags</div>
+                        <div id="tagsInfo" class="value muted"></div>
+
+                        <div class="label">Dependency Info</div>
+                        <div id="dependencyInfo" class="value muted"></div>
+                    </div>
+
+                    <div id="toolDetails"></div>
+
+                    <div class="card">
+                        <details>
+                            <summary>Raw finding info</summary>
+                            <pre id="rawInfo"></pre>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const organization = 'itbinus';
+        const advSecProjectId = '1f663eb2-dd63-4b51-b000-f0949e3c8ab0';
+        const repoProjectName = 'Github_Advanced_Security_Research';
+
+        const qs = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+        const alertId = qs.get('alertId');
+        const repoName = qs.get('repo');
+        const repoKey = qs.get('repoKey') || repoName;
+        const pat = hashParams.get('pat') || sessionStorage.getItem('ado_pat') || '';
+
+        if (pat) {
+            sessionStorage.setItem('ado_pat', pat);
+
+            if (window.location.hash) {
+                history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        async function fetchJson(url, pat) {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Basic ' + btoa(':' + pat)
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} for ${url}`);
+            }
+
+            return response.json();
+        }
+
+        async function fetchApi(url, pat, mode = 'auto') {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Basic ' + btoa(':' + pat)
+                }
+            });
+
+            const raw = await response.text();
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} for ${url}\n${raw.slice(0, 300)}`);
+            }
+
+            if (mode === 'text') return raw;
+
+            // mode === 'json'
+            if (mode === 'json') {
+                try {
+                    return JSON.parse(raw);
+                } catch {
+                    throw new Error(`Expected JSON but got non-JSON response from: ${url}`);
+                }
+            }
+
+            // mode === 'auto'
+            const ct = (response.headers.get('content-type') || '').toLowerCase();
+            if (ct.includes('application/json')) {
+                try { return JSON.parse(raw); } catch { return raw; }
+            }
+
+            try { return JSON.parse(raw); } catch { return raw; }
+        }
+
+        async function getFindingDetail() {
+            const url = `https://advsec.dev.azure.com/${organization}/${advSecProjectId}/_apis/alert/repositories/${encodeURIComponent(repoKey)}/alerts/${encodeURIComponent(alertId)}?api-version=7.2-preview.1`;
+            return fetchApi(url, pat, 'json');
+        }
+
+        function getLocation(finding) {
+            return (
+                finding?.physicalLocations?.[0] ||
+                finding?.physicalLocation?.[0] ||
+                finding?.physicalLocation ||
+                null
+            );
+        }
+
+        function getLocationText(location) {
+            if (!location) return 'No source location';
+
+            const filePath = location.filePath || location.filepath || '';
+            const region = location.region || {};
+
+            const lineStart = Number(region.lineStart ?? region.startLine ?? 0);
+            const lineEnd = Number(region.lineEnd ?? region.endLine ?? 0);
+            const columnStart = Number(region.columnStart ?? region.startColumn ?? 0);
+            const columnEnd = Number(region.columnEnd ?? region.endColumn ?? 0);
+
+            const parts = [];
+            if (filePath) parts.push(filePath);
+            if (lineStart > 0) {
+                parts.push(lineEnd > 0 && lineEnd !== lineStart ? `line ${lineStart}-${lineEnd}` : `line ${lineStart}`);
+            }
+            if (columnStart > 0) {
+                parts.push(columnEnd > 0 && columnEnd !== columnStart ? `col ${columnStart}-${columnEnd}` : `col ${columnStart}`);
+            }
+
+            return parts.join(', ') || 'No source location';
+        }
+
+        function collectRuleTags(finding) {
+            const raw = [];
+
+            const pushTags = (v) => {
+                if (!v) return;
+                if (Array.isArray(v)) raw.push(...v);
+                else raw.push(v);
+            };
+
+            if (Array.isArray(finding?.tools)) {
+                for (const tool of finding.tools) {
+                    if (!Array.isArray(tool?.rules)) continue;
+                    for (const rule of tool.rules) {
+                        pushTags(rule?.tag);
+                        pushTags(rule?.tags);
+                        pushTags(rule?.properties?.tag);
+                        pushTags(rule?.properties?.tags);
+                    }
+                }
+            }
+
+            if (Array.isArray(finding?.rules)) {
+                for (const rule of finding.rules) {
+                    pushTags(rule?.tag);
+                    pushTags(rule?.tags);
+                    pushTags(rule?.properties?.tag);
+                    pushTags(rule?.properties?.tags);
+                }
+            }
+
+            if (finding?.rule && typeof finding.rule === 'object') {
+                pushTags(finding.rule?.tag);
+                pushTags(finding.rule?.tags);
+                pushTags(finding.rule?.properties?.tag);
+                pushTags(finding.rule?.properties?.tags);
+            }
+
+            pushTags(finding?.tags);
+            pushTags(finding?.properties?.tags);
+
+            return raw.map(t => typeof t === 'string' ? t : (t?.name || t?.id || t?.value || JSON.stringify(t))).filter(Boolean);
+        }
+
+        function getDescription(finding) {
+            return (
+                finding?.description ||
+                finding?.rule?.description ||
+                finding?.rule?.fullDescription?.text ||
+                finding?.message?.text ||
+                'No description'
+            );
+        }
+
+        function getHelp(finding) {
+            return (
+                finding?.helpMessage ||
+                finding?.rule?.help?.text ||
+                finding?.rule?.help?.markdown ||
+                finding?.rule?.properties?.help ||
+                'No help message'
+            );
+        }
+
+        function getDependencyDetails(finding, tags) {
+            const dep =
+                finding?.dependency ||
+                finding?.dependencies?.[0] ||
+                finding?.properties?.dependency ||
+                finding?.properties?.package ||
+                null;
+
+            const name =
+                dep?.packageName ||
+                dep?.name ||
+                finding?.packageName ||
+                finding?.properties?.packageName ||
+                '';
+
+            const version =
+                dep?.version ||
+                dep?.packageVersion ||
+                finding?.packageVersion ||
+                finding?.properties?.packageVersion ||
+                '';
+
+            const manifest =
+                dep?.manifestPath ||
+                finding?.manifestPath ||
+                finding?.properties?.manifestPath ||
+                '';
+
+            const isRoot =
+                dep?.isRoot === true ||
+                dep?.isDirect === true ||
+                finding?.properties?.isRootDependency === true ||
+                finding?.properties?.isDirectDependency === true ||
+                tags.some(t => /root/i.test(t));
+
+            return {
+                name,
+                version,
+                manifest,
+                isRoot
+            };
+        }
+
+        function setMetaBadges(finding, tags, depInfo) {
+            const meta = document.getElementById('meta');
+            meta.innerHTML = '';
+
+            const entries = [
+                finding?.alertType || 'unknown',
+                finding?.severity || 'unknown',
+                finding?.state || 'unknown'
+            ];
+
+            for (const item of entries) {
+                const span = document.createElement('span');
+                span.className = 'badge';
+                span.textContent = item;
+                meta.appendChild(span);
+            }
+
+            const cveOrCwe = tags.find(t => /^CVE[-:_\s]/i.test(t)) || tags.find(t => /^CWE[-:_\s]/i.test(t));
+            if (cveOrCwe) {
+                const span = document.createElement('span');
+                span.className = 'badge';
+                span.textContent = cveOrCwe;
+                meta.appendChild(span);
+            }
+
+            if (depInfo.isRoot) {
+                const span = document.createElement('span');
+                span.className = 'badge root';
+                span.textContent = 'ROOT DEP';
+                meta.appendChild(span);
+            }
+        }
+
+        function renderCode(content, location) {
+            const codeView = document.getElementById('codeView');
+            const codeHeader = document.getElementById('codeHeader');
+            codeView.innerHTML = '';
+
+            if (!content) {
+                codeHeader.textContent = 'Source';
+                codeView.innerHTML = '<div style="padding:12px;">No source code returned for this finding.</div>';
+                return;
+            }
+
+            const filePath = location?.filePath || location?.filepath || '';
+            codeHeader.textContent = filePath || 'Source';
+
+            const region = location?.region || {};
+            const startLine = Number(region.lineStart ?? region.startLine ?? 0);
+            const endLine = Number(region.lineEnd ?? region.endLine ?? startLine ?? 0);
+            const startColumn = Number(region.columnStart ?? region.startColumn ?? 0);
+            const endColumn = Number(region.columnEnd ?? region.endColumn ?? 0);
+
+            const lines = content.replace(/\r\n/g, '\n').split('\n');
+            const fragment = document.createDocumentFragment();
+
+            for (let i = 0; i < lines.length; i++) {
+                const lineNo = i + 1;
+                const row = document.createElement('div');
+                row.className = 'code-line';
+
+                const hit = startLine > 0 && lineNo >= startLine && lineNo <= (endLine || startLine);
+                if (hit) row.classList.add('hit');
+
+                const left = document.createElement('div');
+                left.className = 'line-no';
+                left.textContent = lineNo;
+
+                const right = document.createElement('div');
+                right.className = 'line-text';
+                right.innerHTML = buildHighlightedLine(lines[i], lineNo, startLine, endLine || startLine, startColumn, endColumn);
+
+                row.appendChild(left);
+                row.appendChild(right);
+                fragment.appendChild(row);
+            }
+
+            codeView.appendChild(fragment);
+
+            // defer scroll until layout is ready
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    scrollToHighlightedCode();
+                });
+            });
+        }
+
+        function buildHighlightedLine(line, lineNo, startLine, endLine, startColumn, endColumn) {
+            const safeLine = escapeHtml(line);
+
+            if (!startLine || lineNo < startLine || lineNo > endLine) {
+                return safeLine || '&nbsp;';
+            }
+
+            if (!startColumn && !endColumn) {
+                return `<span class="inline-hit">${safeLine || '&nbsp;'}</span>`;
+            }
+
+            let from = 1;
+            let to = line.length;
+
+            if (lineNo === startLine && startColumn > 0) from = startColumn;
+            if (lineNo === endLine && endColumn > 0) to = endColumn;
+
+            const startIdx = Math.max(0, from - 1);
+            const endIdx = Math.max(startIdx + 1, Math.min(line.length, to));
+
+            const before = escapeHtml(line.slice(0, startIdx));
+            const hit = escapeHtml(line.slice(startIdx, endIdx)) || '&nbsp;';
+            const after = escapeHtml(line.slice(endIdx));
+
+            return `${before}<span class="inline-hit">${hit}</span>${after}`;
+        }
+
+        function normalizeAdoPath(filePath) {
+            if (!filePath) return '';
+            return filePath.startsWith('/') ? filePath : `/${filePath}`;
+        }
+
+        async function getFileContent(filePath, finding) {
+            const normalizedPath = normalizeAdoPath(filePath);
+
+            const repoCandidates = [
+                repoName,
+                repoKey,
+                finding?.repositoryId,
+                finding?.repository?.id,
+                finding?.repository?.name
+            ].filter(Boolean);
+
+            const projectCandidates = [
+                qs.get('project'),
+                repoProjectName,
+                finding?.projectName,
+                finding?.project?.name
+            ].filter(Boolean);
+
+            const uniqueRepos = [...new Set(repoCandidates)];
+            const uniqueProjects = [...new Set(projectCandidates)];
+
+            const refName =
+                finding?.physicalLocations?.[0]?.versionControl?.ref ||
+                finding?.versionControl?.ref ||
+                '';
+            const commitId =
+                finding?.physicalLocations?.[0]?.versionControl?.commitId ||
+                finding?.versionControl?.commitId ||
+                '';
+
+            for (const project of uniqueProjects) {
+                for (const repo of uniqueRepos) {
+                    const params = new URLSearchParams({
+                        path: normalizedPath,
+                        includeContent: 'true',
+                        resolveLfs: 'true',
+                        'api-version': '7.1'
+                    });
+
+                    if (commitId) {
+                        params.set('versionDescriptor.versionType', 'commit');
+                        params.set('versionDescriptor.version', commitId);
+                    } else if (refName) {
+                        params.set('versionDescriptor.versionType', 'branch');
+                        params.set('versionDescriptor.version', refName.replace(/^refs\/heads\//i, ''));
+                    }
+
+                    const url = `https://dev.azure.com/${organization}/${encodeURIComponent(project)}/_apis/git/repositories/${encodeURIComponent(repo)}/items?${params.toString()}`;
+
+                    try {
+                        const data = await fetchApi(url, pat, 'auto');
+
+                        // JSON response shape
+                        if (data && typeof data === 'object' && typeof data.content === 'string') {
+                            return data.content;
+                        }
+
+                        // Raw text response shape
+                        if (typeof data === 'string') {
+                            return data;
+                        }
+                    } catch (err) {
+                        if (!String(err?.message || '').includes('HTTP 404')) throw err;
+                    }
+                }
+            }
+
+            throw new Error(`File not found in candidate repos/projects. path=${normalizedPath}`);
+        }
+
+        async function init() {
+            const status = document.getElementById('status');
+
+            if (!pat) {
+                status.textContent = 'PAT not found in sessionStorage. Open this page from the main page after submitting PAT.';
+                return;
+            }
+
+            if (!alertId || !repoName) {
+                status.textContent = 'Missing query string values: alertId and repo.';
+                return;
+            }
+
+            try {
+                const finding = await getFindingDetail();
+                const locations = getPhysicalLocations(finding);
+                const groups = groupLocationsByFile(locations);
+
+                const tags = collectRuleTags(finding);
+                const depInfo = getDependencyDetails(finding, tags);
+                const toolRows = getToolRuleDetails(finding);
+
+                document.getElementById('findingTitle').textContent = finding?.title || `Alert ${alertId}`;
+                document.getElementById('repoInfo').textContent = `${repoName} (${repoKey})`;
+                document.getElementById('locationInfo').textContent =
+                    locations.length
+                        ? `${groups.size} file(s), ${locations.length} location(s)`
+                        : 'No source location';
+                document.getElementById('tagsInfo').textContent = tags.join(', ') || '-';
+                document.getElementById('rawInfo').textContent = JSON.stringify(finding, null, 2);
+
+                const depText = [
+                    depInfo.name ? `Package: ${depInfo.name}` : '',
+                    depInfo.version ? `Version: ${depInfo.version}` : '',
+                    depInfo.manifest ? `Manifest: ${depInfo.manifest}` : '',
+                    depInfo.isRoot ? 'Tag: ROOT DEP' : ''
+                ].filter(Boolean).join('\n') || 'No dependency info';
+                document.getElementById('dependencyInfo').textContent = depText;
+
+                renderToolDetails(toolRows);
+                setMetaBadges(finding, tags, depInfo);
+
+                status.style.display = 'none';
+                document.getElementById('content').style.display = '';
+
+                const codeFiles = document.getElementById('codeFiles');
+                codeFiles.innerHTML = '';
+
+                if (!groups.size) {
+                    const empty = document.createElement('div');
+                    empty.className = 'card';
+                    empty.textContent = 'No physical locations found.';
+                    codeFiles.appendChild(empty);
+                    return;
+                }
+
+                for (const [filePath, regions] of groups.entries()) {
+                    const host = document.createElement('div');
+                    codeFiles.appendChild(host);
+
+                    const content = await getFileContent(filePath, finding);
+                    renderCodeForFile(host, filePath, content, regions);
+                }
+            } catch (error) {
+                status.textContent = `Failed to load viewer: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        init();
+
+        function getToolRuleDetails(finding) {
+            const rows = [];
+
+            if (Array.isArray(finding?.tools)) {
+                for (const tool of finding.tools) {
+                    const toolName = tool?.name || tool?.driver?.name || 'Tool';
+                    if (!Array.isArray(tool?.rules)) continue;
+
+                    for (const rule of tool.rules) {
+                        const desc =
+                            rule?.description ||
+                            rule?.fullDescription?.text ||
+                            rule?.shortDescription?.text ||
+                            finding?.description ||
+                            finding?.message?.text ||
+                            'No description';
+
+                        const help =
+                            rule?.helpMessage ||
+                            rule?.help?.text ||
+                            rule?.help?.markdown ||
+                            rule?.properties?.help ||
+                            finding?.helpMessage ||
+                            'No help message';
+
+                        const tags = []
+                            .concat(rule?.tag || [])
+                            .concat(rule?.tags || [])
+                            .concat(rule?.properties?.tag || [])
+                            .concat(rule?.properties?.tags || [])
+                            .filter(Boolean)
+                            .map(t => typeof t === 'string' ? t : (t?.name || t?.id || t?.value || JSON.stringify(t)));
+
+                        rows.push({ toolName, ruleId: rule?.id || '-', description: desc, help, tags });
+                    }
+                }
+            }
+
+            // fallback: no tools/rules
+            if (!rows.length) {
+                rows.push({
+                    toolName: 'Finding',
+                    ruleId: finding?.rule?.id || '-',
+                    description: finding?.description || finding?.message?.text || 'No description',
+                    help: finding?.helpMessage || finding?.rule?.help?.text || 'No help message',
+                    tags: collectRuleTags(finding)
+                });
+            }
+
+            return rows;
+        }
+
+        function renderToolDetails(toolRows) {
+            const host = document.getElementById('toolDetails');
+            host.innerHTML = '';
+
+            if (!toolRows.length) {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `<div class="label">Tool Details</div><div class="value muted">No tool/rule detail found.</div>`;
+                host.appendChild(card);
+                return;
+            }
+
+            toolRows.forEach((row, i) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="tool-card-title">Tool #${i + 1}: ${escapeHtml(row.toolName)} (Rule: ${escapeHtml(row.ruleId)})</div>
+                    <div class="label">Description</div>
+                    <div class="value muted">${escapeHtml(row.description)}</div>
+                    <div class="label">Help</div>
+                    <div class="value muted">${escapeHtml(row.help)}</div>
+                    <div class="label">Tags</div>
+                    <div class="value muted">${escapeHtml((row.tags || []).join(', ') || '-')}</div>
+                `;
+                host.appendChild(card);
+            });
+        }
+
+        function scrollToHighlightedCode() {
+            const codeView = document.getElementById('codeView');
+            const line = codeView.querySelector('.code-line.hit');
+            const target = codeView.querySelector('.inline-hit') || line;
+            if (!target) return;
+
+            const row = target.closest('.code-line') || target;
+            const top = row.offsetTop - (codeView.clientHeight * 0.35);
+            codeView.scrollTop = Math.max(0, top);
+        }
+
+        function scrollViewToHighlight(view, regions = []) {
+            let target = view.querySelector('.inline-hit') || view.querySelector('.code-line.hit');
+
+            // fallback: use first region start line
+            if (!target && regions.length) {
+                const firstLine = Number(regions[0]?.lineStart ?? regions[0]?.startLine ?? 0);
+                if (firstLine > 0) {
+                    target = view.querySelector(`.code-line[data-line-no="${firstLine}"]`);
+                }
+            }
+
+            if (!target) return;
+
+            const row = target.closest('.code-line') || target;
+            const top = row.offsetTop - (view.clientHeight * 0.35) - 150;
+            view.scrollTop = Math.max(0, top);
+        }
+
+        function getPhysicalLocations(finding) {
+            const out = [];
+            if (Array.isArray(finding?.physicalLocations)) out.push(...finding.physicalLocations);
+            if (Array.isArray(finding?.physicalLocation)) out.push(...finding.physicalLocation);
+            else if (finding?.physicalLocation) out.push(finding.physicalLocation);
+            return out;
+        }
+
+        function getLocationFilePath(loc) {
+            return (
+                loc?.filePath ||
+                loc?.filepath ||
+                loc?.physicalLocation?.filePath ||
+                loc?.physicalLocation?.filepath ||
+                loc?.physicalLocation?.artifactLocation?.uri ||
+                ''
+            );
+        }
+
+        function getLocationRegion(loc) {
+            const r =
+                loc?.region ||
+                loc?.physicalLocation?.region ||
+                loc?.location?.region ||
+                {};
+
+            const lineStart = Number(r.lineStart ?? r.startLine ?? r.line ?? 0);
+            const lineEnd = Number(r.lineEnd ?? r.endLine ?? lineStart ?? 0);
+            const columnStart = Number(r.columnStart ?? r.startColumn ?? r.column ?? 0);
+            const columnEnd = Number(r.columnEnd ?? r.endColumn ?? columnStart ?? 0);
+
+            return { lineStart, lineEnd, columnStart, columnEnd };
+        }
+
+        function groupLocationsByFile(locations) {
+            const groups = new Map();
+
+            for (const loc of locations || []) {
+                const filePath = getLocationFilePath(loc);
+                if (!filePath) continue;
+
+                const region = getLocationRegion(loc);
+                if (!groups.has(filePath)) groups.set(filePath, []);
+                groups.get(filePath).push(region);
+            }
+
+            return groups;
+        }
+
+        function renderCodeForFile(host, filePath, content, regions) {
+            host.innerHTML = '';
+
+            const wrap = document.createElement('div');
+            wrap.className = 'card code-wrap';
+
+            const header = document.createElement('div');
+            header.className = 'code-header';
+            header.textContent = filePath || 'Source';
+
+            const view = document.createElement('div');
+            view.className = 'code-view';
+
+            wrap.appendChild(header);
+            wrap.appendChild(view);
+            host.appendChild(wrap);
+
+            if (!content) {
+                view.innerHTML = '<div style="padding:12px;">No source code returned for this file.</div>';
+                return;
+            }
+
+            const normRegions = (regions || []).map(r => ({
+                lineStart: Number(r?.lineStart ?? r?.startLine ?? r?.line ?? 0),
+                lineEnd: Number(r?.lineEnd ?? r?.endLine ?? r?.lineStart ?? r?.startLine ?? 0),
+                columnStart: Number(r?.columnStart ?? r?.startColumn ?? r?.column ?? 0),
+                columnEnd: Number(r?.columnEnd ?? r?.endColumn ?? r?.columnStart ?? r?.startColumn ?? 0)
+            }));
+
+            const lines = content.replace(/\r\n/g, '\n').split('\n');
+            const fragment = document.createDocumentFragment();
+
+            for (let i = 0; i < lines.length; i++) {
+                const lineNo = i + 1;
+                const line = lines[i];
+                const ranges = [];
+
+                for (const r of normRegions) {
+                    const sLine = r.lineStart;
+                    const eLine = r.lineEnd || sLine;
+                    if (!sLine || lineNo < sLine || lineNo > eLine) continue;
+
+                    let from = 1;
+                    let to = Math.max(1, line.length);
+                    if (lineNo === sLine && r.columnStart > 0) from = r.columnStart;
+                    if (lineNo === eLine && r.columnEnd > 0) to = r.columnEnd;
+
+                    const startIdx = Math.max(0, from - 1);
+                    const endIdx = Math.max(startIdx + 1, Math.min(line.length, to));
+                    ranges.push([startIdx, endIdx]);
+                }
+
+                ranges.sort((a, b) => a[0] - b[0]);
+                const merged = [];
+                for (const rg of ranges) {
+                    if (!merged.length || rg[0] > merged[merged.length - 1][1]) merged.push(rg);
+                    else merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], rg[1]);
+                }
+
+                let html = '';
+                if (!merged.length) {
+                    html = escapeHtml(line) || '&nbsp;';
+                } else {
+                    let cursor = 0;
+                    for (const [s, e] of merged) {
+                        html += escapeHtml(line.slice(cursor, s));
+                        html += `<span class="inline-hit">${escapeHtml(line.slice(s, e)) || '&nbsp;'}</span>`;
+                        cursor = e;
+                    }
+                    html += escapeHtml(line.slice(cursor));
+                }
+
+                const row = document.createElement('div');
+                row.className = 'code-line';
+                row.dataset.lineNo = String(lineNo);
+                if (merged.length) row.classList.add('hit');
+
+                const left = document.createElement('div');
+                left.className = 'line-no';
+                left.textContent = lineNo;
+
+                const right = document.createElement('div');
+                right.className = 'line-text';
+                right.innerHTML = html;
+
+                row.appendChild(left);
+                row.appendChild(right);
+                fragment.appendChild(row);
+            }
+
+            view.appendChild(fragment);
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    scrollViewToHighlight(view, normRegions);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
