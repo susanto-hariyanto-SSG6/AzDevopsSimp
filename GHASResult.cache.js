@@ -7,6 +7,14 @@
 
   const SS_PREFIX = "ghas:";
   const TTL_MS = 2 * 24 * 60 * 60 * 1000; // 2 days
+  const TTL_JITTER_RATIO = 0.2; // +/-20%
+
+  function randomTtl(baseTtl = TTL_MS) {
+    const spread = Math.floor(baseTtl * TTL_JITTER_RATIO);
+    const min = baseTtl - spread;
+    const max = baseTtl + spread;
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
 
   function hash(s) {
     let h = 2166136261;
@@ -22,7 +30,15 @@
   }
 
   function fresh(entry) {
-    return !!entry && (Date.now() - Number(entry.ts || 0) < TTL_MS);
+    if (!entry) return false;
+
+    // New format (preferred): absolute expiration timestamp
+    if (typeof entry.exp === "number") {
+      return Date.now() < entry.exp;
+    }
+
+    // Backward compatibility with old cached entries (ts + fixed TTL)
+    return Date.now() - Number(entry.ts || 0) < TTL_MS;
   }
 
   function stripFinding(f) {
@@ -92,7 +108,15 @@
 
   function setCache(key, payload) {
     try {
-      sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), payload }));
+      const now = Date.now();
+      sessionStorage.setItem(
+        key,
+        JSON.stringify({
+          ts: now,
+          exp: now + randomTtl(),
+          payload
+        })
+      );
     } catch {}
   }
 

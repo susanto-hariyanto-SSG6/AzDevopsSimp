@@ -242,7 +242,6 @@
         let fromCache = false;
 
         while (true) {
-            await randomDelay(500, 1500);
 
             const params = new URLSearchParams({
                 'api-version': '7.2-preview.1',
@@ -255,7 +254,11 @@
             const { data, headers } = await window.GHASResult.fetchDataWithHeaders(url, pat);
 
             const isCompactCache = !!(data && data.__compactCache === true);
-            if (isCompactCache) fromCache = true;
+            if (isCompactCache) {
+                fromCache = true;
+            }else{
+                await randomDelay(500, 1500);
+            }
 
             console.log('[GHASResult] page fetch', {
                 repo,
@@ -371,7 +374,6 @@
         findingsCell.textContent = 'Loading findings...';
 
         try {
-            await randomDelay(800, 2000);
 
             const repoName = findingsCell.dataset.repoName;
             const sanitizedRepoName = repoName.replace(/[\s_@#\$%\^&\*!]/g, '-');
@@ -380,6 +382,9 @@
             const wasCached = window.GHASResult.isCached ? window.GHASResult.isCached(alertUrl, currentPat) : false;
             const findings = await getGhasResult('1f663eb2-dd63-4b51-b000-f0949e3c8ab0', currentPat, sanitizedRepoName);
             const fromCache = findings.fromCache === true;
+            if(!fromCache){
+                await randomDelay(800, 2000);
+            }
 
             console.log('[GHASResult] status decision', {
                 repoName,
