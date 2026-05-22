@@ -3,242 +3,794 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project List for GHAS</title>
+    <title>GHAS Cluster Dashboard</title>
     <style>
-        #loadingIndicator {
-            display: none;
-            font-weight: bold;
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; background: #f4f6f8; color: #333; }
+
+        header { background: #1e2a38; color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        header h1 { margin: 0; font-size: 1.1rem; flex: 1; }
+        header input[type=text] { padding: 5px 8px; border-radius: 4px; border: none; font-size: 12px; width: 220px; }
+        header button { padding: 5px 12px; border-radius: 4px; border: none; background: #27ae60; color: #fff; cursor: pointer; font-size: 12px; }
+        header button:disabled { background: #aaa; cursor: default; }
+        #liveStatus { font-size: 11px; color: #adf; }
+
+        .cluster-cards { display: flex; gap: 16px; padding: 16px; flex-wrap: wrap; }
+
+        .cluster-card {
+            flex: 1; min-width: 260px;
+            background: #fff; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 16px; position: relative;
         }
-        #progressContainer {
-            margin-top: 20px;
-            width:100%;
-            border: 1px solid green;
+        .cluster-card h2 { margin: 0 0 10px; font-size: 1rem; color: #1e2a38; }
+        .cluster-meta { color: #888; font-size: 11px; margin-bottom: 10px; }
+
+        .sev-row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+        .sev-chip { padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; color: #fff; }
+        .sev-chip.c { background: #c0392b; }
+        .sev-chip.h { background: #e67e22; }
+        .sev-chip.m { background: #2980b9; }
+        .sev-chip.l { background: #888; }
+
+        .fix-bar-wrap { margin-top: 10px; }
+        .fix-bar-bg { background: #e8e8e8; border-radius: 4px; height: 10px; width: 100%; overflow: hidden; }
+        .fix-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+        .fix-label { font-size: 11px; color: #555; margin-top: 3px; display: flex; justify-content: space-between; }
+
+        .fix-rate-badge {
+            position: absolute; top: 16px; right: 16px;
+            width: 48px; height: 48px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 13px; color: #fff;
         }
-        #progressBar {
-            width: 0%;
-            height: 30px;
-            background-color: green;
-            text-align: center;
-            color: white;
+
+        .section { padding: 0 16px 20px; }
+        .section-header {
+            display: flex; align-items: center; gap: 8px;
+            cursor: pointer; user-select: none;
+            padding: 10px 12px; background: #fff;
+            border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+            margin-bottom: 4px;
         }
-#projectList{
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
-.project-block {
-  flex: 1 1 calc(24% - 2rem);
-  margin: 0.4rem;
-  padding: 0.6rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #f9f9f9;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-}
+        .section-header:hover { background: #f0f4ff; }
+        .section-header h3 { margin: 0; font-size: 0.95rem; flex: 1; }
+        .section-toggle { font-size: 14px; color: #888; }
 
-.project-name {
-    font-weight: bold;
-    font-size: 1rem;
-    margin-bottom: 0.4rem;
-    text-align: center;
-}
+        .project-table-wrap { overflow-x: auto; }
+        table.ptable {
+            width: 100%; border-collapse: collapse;
+            background: #fff; border-radius: 0 0 6px 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+        }
+        table.ptable th {
+            background: #f0f4f8; padding: 7px 10px;
+            text-align: left; font-size: 11px;
+            border-bottom: 2px solid #dce3ea;
+            white-space: nowrap;
+        }
+        table.ptable td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; font-size: 12px; white-space: nowrap; }
+        table.ptable tr:last-child td { border-bottom: none; }
+        table.ptable tr:hover td { background: #f9fbff; }
+        table.ptable td.num { text-align: right; }
 
-.severity-blocks {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 0.4rem;
-}
+        .c { color: #ccc; font-weight: bold; }
+        .h { color: #ccc; font-weight: bold; }
+        .m { color: #333; font-weight: bold; }
+        .l { color: #222; font-weight: bold; }
+        .dim { color: #bbb; }
 
-.severity {
-    flex: 1 1 calc(20% - 2rem);
-    min-width: 10%;
-    padding: 0.4rem;
-    border-radius: 6px;
-    color: white;
-    text-align: center;
-    font-weight: bold;
-    font-size: 1.2rem;
-}
+        .rate-pill {
+            display: inline-block; padding: 2px 7px;
+            border-radius: 10px; font-size: 10px; font-weight: bold; color: #fff;
+        }
+        .rate-good { background: #27ae60; }
+        .rate-mid  { background: #f39c12; }
+        .rate-low  { background: #e74c3c; }
 
-.critical { background-color: #e74c3c; }
-.high { background-color: #e67e22; }
-.medium { background-color: #f1c40f; color: #333; }
-.other { background-color: #95a5a6; }
+        .live-badge { font-size: 9px; background: #27ae60; color: #fff; padding: 1px 5px; border-radius: 8px; margin-left: 4px; vertical-align: middle; }
+        .stale-badge { font-size: 9px; background: #aaa; color: #fff; padding: 1px 5px; border-radius: 8px; margin-left: 4px; vertical-align: middle; }
 
-@media (max-width: 600px) {
-    .severity {
-        flex: 1 1 100%;
-    }
-}
+        .hidden { display: none; }
+
+        /* Debug panel */
+        #debugPanel { background: #1a1a2e; color: #e0e0e0; padding: 14px 20px; font-size: 12px; border-top: 2px solid #e74c3c; }
+        #debugPanel summary { cursor: pointer; font-weight: bold; color: #f39c12; font-size: 13px; }
+        #debugPanel input[type=text] { padding: 4px 8px; border-radius: 4px; border: none; font-size: 12px; width: 280px; background: #2d2d44; color: #fff; }
+        #debugPanel button { padding: 4px 10px; border-radius: 4px; border: none; background: #e74c3c; color: #fff; cursor: pointer; font-size: 12px; margin-left: 6px; }
+        #debugOut { margin-top: 10px; white-space: pre-wrap; font-family: monospace; font-size: 11px; max-height: 400px; overflow-y: auto; background: #12121e; padding: 10px; border-radius: 4px; }
+        #debugOut .ok { color: #2ecc71; } #debugOut .warn { color: #f39c12; } #debugOut .err { color: #e74c3c; }
+        #debugOut .head { color: #74b9ff; font-weight: bold; }
     </style>
 </head>
 <body>
-<form id="patForm">
-    <input type="text" id="PAT" name="PAT" placeholder="Enter PAT" required />
-    <input type="submit" value="Submit" />
-</form>
-<h1>GHAS Open Case</h1>
-<div id="progressContainer">
-    <div id="progressBar"></div>
+
+<header>
+    <h1>🛡 GHAS Cluster Dashboard</h1>
+    <input type="text" id="patInput" placeholder="Enter PAT for live data (optional)" />
+    <button id="loadLiveBtn" onclick="loadLiveData()">Load Live Data</button>
+    <button onclick="clearAllCache()" style="background:#c0392b;">Clear Cache</button>
+    <span id="liveStatus"></span>
+</header>
+
+<div class="cluster-cards" id="clusterCards">
+    <div style="padding:20px;color:#888;">Loading clusters…</div>
 </div>
-<div id="projectList"></div>
+
+<div id="clusterSections"></div>
+
+<details id="debugPanel">
+    <summary>🔍 Debug: Repo Number Inspector</summary>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <input type="text" id="debugRepo" placeholder="Repo name e.g. SSG5-C1-BSQWebAPI" value="SSG5-C1-BSQWebAPI" />
+        <button onclick="runDebug()">Inspect (cached)</button>
+        <button onclick="clearRepoCache()" style="background:#c0392b;">Clear This Repo Cache</button>
+        <span id="debugStatus" style="font-size:11px;color:#adf"></span>
+    </div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="color:#aaa;font-size:11px;">Raw API test — extra param:</span>
+        <input type="text" id="debugExtraParam" style="width:320px" placeholder="e.g. states=active,fixed  or  criteria.states=fixed  (leave blank for default)" />
+        <button onclick="runRawTest()" style="background:#8e44ad;">Test Raw API</button>
+    </div>
+    <div id="debugOut"></div>
+</details>
 
 <script>
-    const organization = 'itbinus'; // Replace with your organization name
+    const organization = 'itbinus';
+    const GHAS_PROJECT_ID = '1f663eb2-dd63-4b51-b000-f0949e3c8ab0';
 
-    document.getElementById('patForm').addEventListener('submit', async function(event) {
-        event.preventDefault();
-        const pat = document.getElementById('PAT').value.trim();
-
-        if (!pat) {
-            console.error('PAT is required.');
-            return;
-        }
-
-        try {
-            const projectListElement = document.getElementById('projectList');
-            const data = await getProjects(pat);
-
-            const totalProjects = data.value.length;
-            const loadedProjects = { count: 0 };
-
-            const projectPromises = data.value.map(project =>
-                renderProjectDetails(project, projectListElement, loadedProjects, totalProjects, pat)
-            );
-
-            await Promise.all(projectPromises);            
-            console.log(dashboardData);
-            setTimeout('printDashboard()', 1000);
-        } catch (error) {
-            console.error('Error fetching data:', error);
-        }
-    });
-    
-
-    async function printDashboard(){
-        const container = document.getElementById("projectList");
-
-        Object.values(dashboardData).forEach(project => {
-            const projectDiv = document.createElement("div");
-            projectDiv.className = "project-block";
-
-            projectDiv.innerHTML = `
-                <div class="project-name">${project.repo}</div>
-                <div class="severity-blocks">
-                    <div class="severity critical">${project.critical}</div>
-                    <div class="severity high">${project.high}</div>
-                    <div class="severity medium">${project.medium}</div>
-                    <div class="severity other">${project.other}</div>
-                </div>
-            `;
-
-            container.appendChild(projectDiv);
-            console.log(project.repo);
-        });
-    }
-
+    // Base fetch functions — must be registered on window.GHASResult BEFORE cache.js loads
     async function fetchData(url, pat) {
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Authorization': 'Basic ' + btoa(':' + pat)
-            }
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const response = await fetch(url, { headers: { 'Authorization': 'Basic ' + btoa(':' + pat) } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json();
     }
 
-    async function getProjects(pat) {
-        const apiUrl = `https://dev.azure.com/${organization}/_apis/projects?api-version=5.1`;
-        return fetchData(apiUrl, pat);
+    async function fetchDataWithHeaders(url, pat) {
+        const response = await fetch(url, { headers: { 'Authorization': 'Basic ' + btoa(':' + pat) } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return { data, headers: response.headers };
     }
 
-    async function getPipelines(projectId, pat) {
-    	const pipelineUrl = `https://dev.azure.com/${organization}/${projectId}/_apis/build/definitions?api-version=5.1`;
-    	return fetchData(pipelineUrl, pat);
+    window.GHASResult = window.GHASResult || {};
+    window.GHASResult.fetchData = fetchData;
+    window.GHASResult.fetchDataWithHeaders = fetchDataWithHeaders;
+
+
+    const sevConfig = [
+        { key: 'critical', label: 'C', css: 'c', risk: 'criticalRisk' },
+        { key: 'high',     label: 'H', css: 'h', risk: 'highRisk'     },
+        { key: 'medium',   label: 'M', css: 'm', risk: 'mediumRisk'   },
+        { key: 'low',      label: 'L', css: 'l', risk: 'lowRisk'      },
+    ];
+
+    let clusterMap = [];   // from GHASCluster.json
+    let liveData = {};     // sanitized repoName -> { critical, high, medium, low, totalActive, fixedCritical, fixedHigh, fixedMedium, fixedLow, totalFixed, fromCache }
+    const sanitize = n => String(n).replace(/[\s_@#$%^&*!]/g, '-');
+
+    // loadFromCache is called in init() AFTER cache.js loads, so getAllCacheEntries is available
+    async function loadFromCache() {
+        const alertPat = /_apis\/alert\/repositories\/([^?\/]+)\/alerts/;
+        try {
+            const entries = await window.GHASResult.getAllCacheEntries();
+            const now = Date.now();
+            for (const { key, data: entry } of entries) {
+                const urlPart = key.slice('ghas:'.length).split('|u:')[0];
+                const match = urlPart.match(alertPat);
+                if (!match) continue;
+                const repoName = decodeURIComponent(match[1]);
+                if (!entry?.payload?.value) continue;
+                const expired = entry.exp ? now > entry.exp : (now - (entry.ts||0) > 2*24*60*60*1000);
+                if (expired) continue;
+                const findings = entry.payload.value;
+                const act = { critical:0, high:0, medium:0, low:0 };
+                const fix = { critical:0, high:0, medium:0, low:0 };
+                for (const f of findings) {
+                    const sev = String(f?.severity||'').toLowerCase();
+                    const isFixed = String(f?.state||'').toLowerCase() === 'fixed' || !!f?.fixedDate;
+                    if (isFixed) { if (fix[sev]!==undefined) fix[sev]++; }
+                    else { if (act[sev]!==undefined) act[sev]++; }
+                }
+                liveData[repoName] = {
+                    critical: act.critical, high: act.high, medium: act.medium, low: act.low,
+                    totalActive: act.critical+act.high+act.medium+act.low,
+                    fixedCritical: fix.critical, fixedHigh: fix.high, fixedMedium: fix.medium, fixedLow: fix.low,
+                    totalFixed: fix.critical+fix.high+fix.medium+fix.low,
+                    fromCache: true
+                };
+            }
+        } catch(e) {
+            console.warn('[Dashboard] loadFromCache error', e);
+        }
+    }
+
+    function rateColor(pct) {
+        if (pct >= 40) return '#27ae60';
+        if (pct >= 20) return '#f39c12';
+        return '#e74c3c';
+    }
+
+    function ratePill(pct) {
+        const cls = pct >= 40 ? 'rate-good' : (pct >= 20 ? 'rate-mid' : 'rate-low');
+        return `<span class="rate-pill ${cls}">${pct.toFixed(0)}%</span>`;
+    }
+
+    // active = open findings, fixed = all-time fixed → denominator is all-time total
+    function fixRate(active, fixed) {
+        const total = active + fixed;
+        return total > 0 ? (fixed / total * 100) : 0;
+    }
+
+    // Build project list from GHASCluster.json project definitions (each has .name + .repos[])
+    function aggregateProjects(projectDefs) {
+        return projectDefs.map(p => ({
+            projectName: p.name,
+            repos: Array.isArray(p.repos) ? p.repos : [p.name]
+        })).sort((a, b) => {
+            const aActive = a.repos.reduce((s,r) => s + (liveData[sanitize(r)]?.totalActive||0), 0);
+            const bActive = b.repos.reduce((s,r) => s + (liveData[sanitize(r)]?.totalActive||0), 0);
+            return bActive - aActive;
+        });
+    }
+
+    function clusterTotals(projectList) {
+        const acc = { repos: 0, critical: 0, high: 0, medium: 0, low: 0, total: 0, fixed: 0 };
+        for (const p of projectList) {
+            acc.repos += p.repos.length;
+            for (const r of p.repos) {
+                const ld = liveData[sanitize(r)];
+                if (!ld) continue;
+                acc.critical += ld.critical || 0;
+                acc.high     += ld.high     || 0;
+                acc.medium   += ld.medium   || 0;
+                acc.low      += ld.low      || 0;
+                acc.total    += ld.totalActive || 0;
+                acc.fixed    += ld.totalFixed  || 0;
+            }
+        }
+        return acc;
+    }
+
+    function renderClusterCards(clusters) {
+        const cards = document.getElementById('clusterCards');
+        cards.innerHTML = '';
+        for (const cl of clusters) {
+            const t = cl._totals;
+            const pct = fixRate(t.total, t.fixed);
+            const color = rateColor(pct);
+
+            const card = document.createElement('div');
+            card.className = 'cluster-card';
+            card.innerHTML = `
+                <div class="fix-rate-badge" style="background:${color}">${pct.toFixed(0)}%</div>
+                <h2>${cl.name}</h2>
+                <div class="cluster-meta">${cl._projects.length} projects &nbsp;·&nbsp; ${t.repos} repos</div>
+                <div style="font-size:11px;color:#666;margin-bottom:2px;">Total cases: <b>${t.total.toLocaleString()}</b></div>
+                <div class="sev-row">
+                    <span class="sev-chip c" title="Critical">${t.critical.toLocaleString()}</span>
+                    <span class="sev-chip h" title="High">${t.high.toLocaleString()}</span>
+                    <span class="sev-chip m" title="Medium">${t.medium.toLocaleString()}</span>
+                    <span class="sev-chip l" title="Low">${t.low.toLocaleString()}</span>
+                </div>
+                <div style="font-size:11px;color:#666;margin-top:8px;margin-bottom:2px;">
+                    Active: <b>${t.total.toLocaleString()}</b> &nbsp;·&nbsp; Fixed: <b>${t.fixed.toLocaleString()}</b>
+                </div>
+                <div class="fix-bar-wrap">
+                    <div class="fix-bar-bg"><div class="fix-bar-fill" style="width:${Math.min(pct,100)}%;background:${color}"></div></div>
+                    <div class="fix-label"><span>0%</span><span>Fix rate: ${pct.toFixed(1)}% of ${(t.total+t.fixed).toLocaleString()} all-time</span><span>100%</span></div>
+                </div>`;
+            cards.appendChild(card);
+        }
+    }
+
+    function renderProjectTable(projects, sectionEl) {
+        const wrap = document.createElement('div');
+        wrap.className = 'project-table-wrap';
+
+        const table = document.createElement('table');
+        table.className = 'ptable';
+
+        // Two-row grouped header: Active (C|H|M|L|#) | Fixed (C|H|M|L|#) | Fix%
+        table.innerHTML = `
+        <thead>
+          <tr>
+            <th rowspan="2">Repo</th>
+            <th rowspan="2">Project</th>
+            <th colspan="5" style="text-align:center;border-bottom:1px solid #ccc;background:#fdecea">Active</th>
+            <th colspan="5" style="text-align:center;border-bottom:1px solid #ccc;background:#eafaf1">Fixed</th>
+            <th rowspan="2">Fix%</th>
+          </tr>
+          <tr>
+            <th style="color:#c0392b;text-align:right;background:#fdecea">Crit</th>
+            <th style="color:#e67e22;text-align:right;background:#fdecea">High</th>
+            <th style="color:#2980b9;text-align:right;background:#fdecea">Med</th>
+            <th style="color:#888;text-align:right;background:#fdecea">Low</th>
+            <th style="text-align:right;background:#fdecea">#</th>
+            <th style="color:#c0392b;text-align:right;background:#eafaf1">Crit</th>
+            <th style="color:#e67e22;text-align:right;background:#eafaf1">High</th>
+            <th style="color:#2980b9;text-align:right;background:#eafaf1">Med</th>
+            <th style="color:#888;text-align:right;background:#eafaf1">Low</th>
+            <th style="text-align:right;background:#eafaf1">#</th>
+          </tr>
+        </thead>`;
+
+        const tbody = document.createElement('tbody');
+        const tot = { ac:0, ah:0, am:0, al:0, atotal:0, fc:0, fh:0, fm:0, fl:0, ftotal:0 };
+
+        for (const p of projects) {
+            for (const r of p.repos) {
+                const key = sanitize(r);
+                const ld = liveData[key];
+                const tr = document.createElement('tr');
+
+                if (ld) {
+                    const pct = fixRate(ld.totalActive, ld.totalFixed);
+                    const src = ld.fromCache
+                        ? '<span class="stale-badge">📦</span>'
+                        : '<span class="live-badge">🌐</span>';
+                    const n = v => v > 0 ? v : '<span class="dim">-</span>';
+                    tr.innerHTML = `
+                        <td>${r} ${src}</td>
+                        <td class="dim" style="font-size:11px">${p.projectName}</td>
+                        <td class="num ${ld.critical > 0         ? 'c' : 'dim'}" style="background:#fdecea">${n(ld.critical)}</td>
+                        <td class="num ${ld.high     > 0         ? 'h' : 'dim'}" style="background:#fdecea">${n(ld.high)}</td>
+                        <td class="num ${ld.medium   > 0         ? 'm' : 'dim'}" style="background:#fdecea">${n(ld.medium)}</td>
+                        <td class="num ${ld.low      > 0         ? 'l' : 'dim'}" style="background:#fdecea">${n(ld.low)}</td>
+                        <td class="num" style="background:#fdecea"><b>${ld.totalActive.toLocaleString()}</b></td>
+                        <td class="num ${ld.fixedCritical > 0    ? 'c' : 'dim'}" style="background:#eafaf1">${n(ld.fixedCritical||0)}</td>
+                        <td class="num ${ld.fixedHigh     > 0    ? 'h' : 'dim'}" style="background:#eafaf1">${n(ld.fixedHigh||0)}</td>
+                        <td class="num ${ld.fixedMedium   > 0    ? 'm' : 'dim'}" style="background:#eafaf1">${n(ld.fixedMedium||0)}</td>
+                        <td class="num ${ld.fixedLow      > 0    ? 'l' : 'dim'}" style="background:#eafaf1">${n(ld.fixedLow||0)}</td>
+                        <td class="num" style="background:#eafaf1"><b>${ld.totalFixed.toLocaleString()}</b></td>
+                        <td class="num">${ratePill(pct)}</td>`;
+                    tot.ac += ld.critical       || 0; tot.ah += ld.high         || 0;
+                    tot.am += ld.medium         || 0; tot.al += ld.low          || 0;
+                    tot.atotal += ld.totalActive || 0;
+                    tot.fc += ld.fixedCritical  || 0; tot.fh += ld.fixedHigh    || 0;
+                    tot.fm += ld.fixedMedium    || 0; tot.fl += ld.fixedLow     || 0;
+                    tot.ftotal += ld.totalFixed  || 0;
+                } else {
+                    tr.innerHTML = `
+                        <td>${r} <span class="stale-badge" title="No data">⚠</span></td>
+                        <td class="dim" style="font-size:11px">${p.projectName}</td>
+                        <td class="num dim" style="background:#fdecea">-</td>
+                        <td class="num dim" style="background:#fdecea">-</td>
+                        <td class="num dim" style="background:#fdecea">-</td>
+                        <td class="num dim" style="background:#fdecea">-</td>
+                        <td class="num dim" style="background:#fdecea">-</td>
+                        <td class="num dim" style="background:#eafaf1">-</td>
+                        <td class="num dim" style="background:#eafaf1">-</td>
+                        <td class="num dim" style="background:#eafaf1">-</td>
+                        <td class="num dim" style="background:#eafaf1">-</td>
+                        <td class="num dim" style="background:#eafaf1">-</td>
+                        <td class="num dim">-</td>`;
+                }
+                tbody.appendChild(tr);
+            }
+        }
+
+        // Totals row
+        const tpct = fixRate(tot.atotal, tot.ftotal);
+        const tfooter = document.createElement('tr');
+        tfooter.style.background = '#f0f4f8';
+        tfooter.innerHTML = `
+            <td><b>TOTAL</b></td>
+            <td></td>
+            <td class="num c" style="background:#fdecea">${tot.ac||'-'}</td>
+            <td class="num h" style="background:#fdecea">${tot.ah||'-'}</td>
+            <td class="num m" style="background:#fdecea">${tot.am||'-'}</td>
+            <td class="num l" style="background:#fdecea">${tot.al||'-'}</td>
+            <td class="num" style="background:#fdecea"><b>${tot.atotal.toLocaleString()}</b></td>
+            <td class="num c" style="background:#eafaf1">${tot.fc||'-'}</td>
+            <td class="num h" style="background:#eafaf1">${tot.fh||'-'}</td>
+            <td class="num m" style="background:#eafaf1">${tot.fm||'-'}</td>
+            <td class="num l" style="background:#eafaf1">${tot.fl||'-'}</td>
+            <td class="num" style="background:#eafaf1"><b>${tot.ftotal.toLocaleString()}</b></td>
+            <td class="num">${ratePill(tpct)}</td>`;
+        tbody.appendChild(tfooter);
+
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        sectionEl.appendChild(wrap);
+    }
+
+    function renderSections(clusters) {
+        const container = document.getElementById('clusterSections');
+        container.innerHTML = '';
+        for (const cl of clusters) {
+            const section = document.createElement('div');
+            section.className = 'section';
+            section.id = `section-${cl.id}`;
+
+            const header = document.createElement('div');
+            header.className = 'section-header';
+            const t = cl._totals;
+            const pct = fixRate(t.total, t.fixed);
+            header.innerHTML = `
+                <span class="section-toggle">▼</span>
+                <h3>${cl.name}</h3>
+                <span style="font-size:11px;color:#888;">${t.repos} repos · ${t.total.toLocaleString()} cases · ${ratePill(pct)}</span>`;
+
+            const body = document.createElement('div');
+            body.id = `section-body-${cl.id}`;
+
+            header.onclick = () => {
+                const hidden = body.classList.toggle('hidden');
+                header.querySelector('.section-toggle').textContent = hidden ? '▶' : '▼';
+            };
+
+            renderProjectTable(cl._projects, body);
+            section.appendChild(header);
+            section.appendChild(body);
+            container.appendChild(section);
+        }
+    }
+
+    function render(clusters) {
+        renderClusterCards(clusters);
+        renderSections(clusters);
+    }
+
+    function randomDelay(minMs = 500, maxMs = 2000) {
+        const delay = Math.random() * (maxMs - minMs) + minMs;
+        return new Promise(resolve => setTimeout(resolve, delay));
     }
 
     async function getGhasResult(projectId, pat, repo) {
-    	const pipelineUrl = `https://advsec.dev.azure.com/${organization}/${projectId}/_apis/alert/repositories/${repo}/alerts?api-version=7.2-preview.1`;
-    	return fetchData(pipelineUrl, pat);
-    }
+        const top = 100;
+        let continuationToken = null;
+        let page = 0;
+        const allFindings = [];
+        const seenAlertIds = new Set();
+        const seenPageMarkers = new Set();
+        let fromCache = false;
 
-    const dashboardData = {};
+        while (true) {
+            const params = new URLSearchParams({ 'api-version': '7.2-preview.1', '$top': String(top) });
+            if (continuationToken) params.set('continuationToken', continuationToken);
+            const url = `https://advsec.dev.azure.com/${organization}/${projectId}/_apis/alert/repositories/${repo}/alerts?${params.toString()}`;
+            const { data, headers } = await window.GHASResult.fetchDataWithHeaders(url, pat);
 
-    async function renderProjectDetails(project, projectListElement, loadedProjects, totalProjects, pat) {
-        try {
-
-            var c = 1;
-
-            const pipelines = await getPipelines(project.id, pat);
-            const matchingPipeline = pipelines.value.filter(pipeline => 
-    		["CI_GHAS_", "CI_FE_GHAS_", "CI_LE_GHAS_"].some(prefix => pipeline.name.startsWith(prefix))
-	        );
-            for (const pipeline of matchingPipeline) {
-               renderPipelineLink(c++, pat, project.id, pipeline);
-
-            }            
-
-            loadedProjects.count++;
-            const progressPercentage = (loadedProjects.count / totalProjects) * 100;
-            const progressBar = document.getElementById('progressBar');
-            progressBar.style.width = `${progressPercentage}%`;
-
-        } catch (error) {
-            console.error('Error processing project details:', error);
-        }
-    }
-
-    async function renderPipelineLink(c, pat, projectId, pipeline) {
-        
-        try {
-            const sanitizedPipelineName = pipeline.name.replace(/^(CI_GHAS_|CI_FE_GHAS_|CI_LE_GHAS_)/, "");
-            const findings = await getGhasResult('1f663eb2-dd63-4b51-b000-f0949e3c8ab0', pat, sanitizedPipelineName);
-            if (findings.value && Array.isArray(findings.value)) {
-
-                findings.value.forEach(finding => {
-                    if(finding.state === "active") {
-                        const projectName = sanitizedPipelineName; // Adjust if multiple pipelines exist
-                        if (!dashboardData[projectName]) {
-                            dashboardData[projectName] = {
-                                repo: projectName,
-                                critical: 0,
-                                high: 0,
-                                medium: 0,
-                                other: 0
-                            };
-                        }
-
-                        switch (finding.severity) {
-                            case "critical":
-                                dashboardData[projectName].critical++;
-                                break;
-                            case "high":
-                                dashboardData[projectName].high++;
-                                break;
-                            case "medium":
-                                dashboardData[projectName].medium++;
-                                break;
-                            default:
-                                dashboardData[projectName].other++;
-                                break;
-                        }
-                    }
-                    
-                });
+            const isCompactCache = !!(data && data.__compactCache === true);
+            if (isCompactCache) {
+                fromCache = true;
             } else {
-                findingsCell.textContent = "No findings found";
+                await randomDelay(500, 1500);
             }
-        } catch (error) {
-            findingsCell.textContent = "Error fetching findings";
-            console.error("Error fetching GHAS findings:", error);
+
+            const items = Array.isArray(data?.value) ? data.value : [];
+            const firstId = items[0]?.alertId ?? 'none';
+            const marker = `top=${top}|token=${continuationToken ?? 'start'}|firstId=${firstId}|count=${items.length}`;
+
+            page++;
+            if (seenPageMarkers.has(marker)) break;
+            seenPageMarkers.add(marker);
+
+            let addedThisPage = 0;
+            for (const f of items) {
+                const id = String(f?.alertId ?? '');
+                if (!id || seenAlertIds.has(id)) continue;
+                seenAlertIds.add(id);
+                allFindings.push(f);
+                addedThisPage++;
+            }
+
+            const nextToken = headers.get('x-ms-continuationtoken');
+            if (!nextToken) break;
+            if (nextToken === continuationToken) break;
+            if (items.length > 0 && addedThisPage === 0) break;
+            continuationToken = nextToken;
         }
 
+        return { value: allFindings, fromCache };
     }
-    
+
+    async function loadLiveData() {
+        const pat = document.getElementById('patInput').value.trim();
+        if (!pat) { alert('Please enter a PAT first.'); return; }
+
+        const btn = document.getElementById('loadLiveBtn');
+        const status = document.getElementById('liveStatus');
+        btn.disabled = true;
+
+        const allRepos = (window.__clusters || [])
+            .flatMap(cl => cl._projects)
+            .flatMap(p => p.repos.map(r => ({ repoName: r, sanitized: sanitize(r) })));
+        // deduplicate
+        const seen = new Set();
+        const uniqueRepos = allRepos.filter(r => seen.has(r.sanitized) ? false : (seen.add(r.sanitized), true));
+        const total = uniqueRepos.length;
+        let done = 0, cacheHits = 0, errors = 0;
+
+        function setStatus(text, color) {
+            status.style.color = color || '#adf';
+            status.textContent = text;
+        }
+
+        setStatus(`⏳ Starting… 0 / ${total} repos`);
+
+        for (const repo of uniqueRepos) {
+            const sanitized = repo.sanitized;
+            setStatus(`⏳ [${done + 1}/${total}] ${repo.repoName.slice(0, 28)}…`);
+            try {
+                const result = await getGhasResult(GHAS_PROJECT_ID, pat, sanitized);
+                if (result.fromCache) cacheHits++;
+
+                const findings = result.value || [];
+                const act = { critical:0, high:0, medium:0, low:0 };
+                const fix = { critical:0, high:0, medium:0, low:0 };
+                for (const f of findings) {
+                    const s = String(f?.severity || '').toLowerCase();
+                    const isFixed = String(f?.state || '').toLowerCase() === 'fixed' || !!f?.fixedDate;
+                    if (isFixed) { if (fix[s]!==undefined) fix[s]++; }
+                    else { if (act[s]!==undefined) act[s]++; }
+                }
+                liveData[sanitized] = {
+                    critical: act.critical, high: act.high, medium: act.medium, low: act.low,
+                    totalActive: act.critical+act.high+act.medium+act.low,
+                    fixedCritical: fix.critical, fixedHigh: fix.high, fixedMedium: fix.medium, fixedLow: fix.low,
+                    totalFixed: fix.critical+fix.high+fix.medium+fix.low,
+                    fromCache: result.fromCache
+                };
+            } catch (e) {
+                errors++;
+                console.warn('[Dashboard] failed repo', repo.repoName, e);
+            }
+            done++;
+            const freshCount = done - cacheHits - errors;
+            setStatus(`⏳ [${done}/${total}] — 📦 ${cacheHits} cached · 🌐 ${freshCount} fresh · ❌ ${errors} err`);
+        }
+
+        btn.disabled = false;
+        const freshCount = done - cacheHits - errors;
+        setStatus(`✅ Done — ${total} repos · 📦 ${cacheHits} cached · 🌐 ${freshCount} fresh · ❌ ${errors} err`, '#8f8');
+
+        // Re-render with live data — recalculate totals from fresh liveData
+        window.__clusters = window.__clusters.map(cl => ({
+            ...cl,
+            _totals: clusterTotals(cl._projects)
+        }));
+        render(window.__clusters);
+    }
+
+    async function clearAllCache() {
+        await window.GHASResult.clearCache();
+        liveData = {};
+        const st = document.getElementById('liveStatus');
+        st.textContent = `🗑 Cache cleared`;
+        st.style.color = '#f39c12';
+        setTimeout(() => { st.textContent = ''; }, 3000);
+    }
+
+    async function clearRepoCache() {
+        const repoName = document.getElementById('debugRepo').value.trim();
+        if (!repoName) return;
+        const san = sanitize(repoName);
+        await window.GHASResult.clearCacheByPattern(san);
+        delete liveData[san];
+        document.getElementById('debugStatus').textContent = `🗑 Cache cleared for "${repoName}"`;
+    }
+
+    async function runRawTest() {
+        const repoName = document.getElementById('debugRepo').value.trim();
+        const pat = document.getElementById('patInput').value.trim();
+        const extra = document.getElementById('debugExtraParam').value.trim();
+        const out = document.getElementById('debugOut');
+        if (!repoName || !pat) { out.innerHTML = '<span class="err">Enter repo name and PAT first.</span>'; return; }
+
+        const sanitized = repoName.replace(/[\s_@#\$%\^&\*!]/g, '-');
+        const base = `https://advsec.dev.azure.com/${organization}/${GHAS_PROJECT_ID}/_apis/alert/repositories/${sanitized}/alerts?api-version=7.2-preview.1&$top=100`;
+        const url = extra ? `${base}&${extra}` : base;
+
+        out.innerHTML = `<span class="warn">⏳ Raw fetch (bypassing cache)…\n  URL: ${url}</span>`;
+
+        try {
+            const resp = await fetch(url, { headers: { 'Authorization': 'Basic ' + btoa(':' + pat) } });
+            const text = await resp.text();
+            let parsed;
+            try { parsed = JSON.parse(text); } catch { parsed = null; }
+
+            const lines = [];
+            lines.push(`<span class="head">HTTP ${resp.status} ${resp.statusText}</span>`);
+            lines.push(`URL: ${url}`);
+            lines.push(`continuationToken header: ${resp.headers.get('x-ms-continuationtoken') || 'none'}`);
+            lines.push('');
+
+            if (!resp.ok) {
+                lines.push(`<span class="err">❌ API Error</span>`);
+                lines.push(text.slice(0, 500));
+            } else if (parsed?.value) {
+                const items = parsed.value;
+                const stateCounts = {}, sevCounts = {};
+                for (const f of items) {
+                    const s = String(f?.state||'?').toLowerCase();
+                    const v = String(f?.severity||'?').toLowerCase();
+                    stateCounts[s] = (stateCounts[s]||0)+1;
+                    sevCounts[v]   = (sevCounts[v]  ||0)+1;
+                }
+                lines.push(`<span class="ok">✅ Got ${items.length} findings</span>`);
+                lines.push('  By state: ' + Object.entries(stateCounts).map(([k,v])=>`${k}:${v}`).join(', '));
+                lines.push('  By sev:   ' + Object.entries(sevCounts).map(([k,v])=>`${k}:${v}`).join(', '));
+            } else {
+                lines.push(`<span class="warn">⚠ No value array in response</span>`);
+                lines.push(text.slice(0, 300));
+            }
+            out.innerHTML = lines.join('\n');
+        } catch(e) {
+            out.innerHTML = `<span class="err">❌ Fetch error: ${e.message}</span>`;
+        }
+    }
+
+    async function runDebug() {
+        const repoName = document.getElementById('debugRepo').value.trim();
+        const pat = document.getElementById('patInput').value.trim();
+        const out = document.getElementById('debugOut');
+        const st  = document.getElementById('debugStatus');
+        if (!repoName) { out.innerHTML = '<span class="err">Enter a repo name.</span>'; return; }
+        if (!pat)      { out.innerHTML = '<span class="err">Enter your PAT in the header first.</span>'; return; }
+
+        out.innerHTML = '<span class="warn">⏳ Fetching live data…</span>';
+        st.textContent = '';
+
+        const sanitized = repoName.replace(/[\s_@#\$%\^&\*!]/g, '-');
+        let result, findings;
+        try {
+            result   = await getGhasResult(GHAS_PROJECT_ID, pat, sanitized);
+            findings = result.value || [];
+        } catch(e) {
+            out.innerHTML = `<span class="err">❌ API error: ${e.message}</span>`;
+            return;
+        }
+
+        // --- Snapshot row ---
+        const snap = liveData[sanitize(repoName)] || null;
+
+        // --- State/severity breakdown ---
+        const stateCounts  = {};
+        const sevCounts    = {};
+        const comboCounts  = {};
+        for (const f of findings) {
+            const state = String(f?.state || 'unknown').toLowerCase();
+            const sev   = String(f?.severity || 'unknown').toLowerCase();
+            stateCounts[state] = (stateCounts[state] || 0) + 1;
+            sevCounts[sev]     = (sevCounts[sev]     || 0) + 1;
+            const combo = `${sev}+${state}`;
+            comboCounts[combo] = (comboCounts[combo] || 0) + 1;
+        }
+
+        // --- Same logic as summarizeFixByDay (GHASResult) ---
+        const knownSev = ['critical','high','medium','low'];
+        const totalBySev = {critical:0,high:0,medium:0,low:0};
+        const fixedBySev = {critical:0,high:0,medium:0,low:0};
+        let allFixed = 0;
+        for (const f of findings) {
+            const state  = String(f?.state || '').toLowerCase();
+            const sev    = String(f?.severity || '').toLowerCase();
+            const isFixed = state === 'fixed' || !!f?.fixedDate;
+            if (knownSev.includes(sev)) totalBySev[sev]++;
+            if (isFixed) { allFixed++; if (knownSev.includes(sev)) fixedBySev[sev]++; }
+        }
+
+        // --- Same logic as loadLiveData (Dashboard) ---
+        const dashFixed = {critical:0,high:0,medium:0,low:0};
+        for (const f of findings) {
+            const state  = String(f?.state || '').toLowerCase();
+            const sev    = String(f?.severity || '').toLowerCase();
+            const isFixed = state === 'fixed' || !!f?.fixedDate;
+            if (isFixed && dashFixed[sev] !== undefined) dashFixed[sev]++;
+        }
+
+        // --- Sample fixed-date fields ---
+        const sampleFixed = findings.filter(f => {
+            const state = String(f?.state || '').toLowerCase();
+            return state === 'fixed' || !!f?.fixedDate;
+        }).slice(0, 3);
+
+        const lines = [];
+        lines.push(`<span class="head">═══ CACHE DATA (sessionStorage) ═══</span>`);
+        if (snap) {
+            lines.push(`  C (active): ${snap.critical}  H: ${snap.high}  M: ${snap.medium}  L: ${snap.low}`);
+            lines.push(`  totalActive : ${snap.totalActive}`);
+            lines.push(`  totalFixed  : ${snap.totalFixed}  ← from cache (fixed findings count)`);
+        } else {
+            lines.push(`  <span class="err">⚠ NOT FOUND in cache. Load live data first.</span>`);
+        }
+
+        lines.push('');
+        lines.push(`<span class="head">═══ LIVE API (${result.fromCache ? '📦 from cache' : '🌐 fresh'}) ═══</span>`);
+        lines.push(`  sanitized URL name : ${sanitized}`);
+        lines.push(`  total findings returned : ${findings.length}`);
+
+        lines.push('');
+        lines.push(`<span class="head">  — By state —</span>`);
+        for (const [k,v] of Object.entries(stateCounts).sort()) lines.push(`  ${k.padEnd(14)}: ${v}`);
+
+        lines.push('');
+        lines.push(`<span class="head">  — By severity —</span>`);
+        for (const [k,v] of Object.entries(sevCounts).sort()) lines.push(`  ${k.padEnd(14)}: ${v}`);
+
+        lines.push('');
+        lines.push(`<span class="head">  — By severity+state combos —</span>`);
+        for (const [k,v] of Object.entries(comboCounts).sort()) lines.push(`  ${k.padEnd(24)}: ${v}`);
+
+        lines.push('');
+        lines.push(`<span class="head">═══ CALCULATED (GHASResult logic) ═══</span>`);
+        lines.push(`  "Total" row  — all findings by sev (active+fixed):`);
+        lines.push(`    C:${totalBySev.critical} H:${totalBySev.high} M:${totalBySev.medium} L:${totalBySev.low}`);
+        lines.push(`  "Fixed" row  — isFixed (state=fixed OR fixedDate present):`);
+        lines.push(`    C:${fixedBySev.critical} H:${fixedBySev.high} M:${fixedBySev.medium} L:${fixedBySev.low}  (total: ${allFixed})`);
+
+        lines.push('');
+        lines.push(`<span class="head">═══ CALCULATED (Dashboard loadLiveData logic) ═══</span>`);
+        const dbActive = {critical:0,high:0,medium:0,low:0};
+        for (const f of findings) {
+            const s = String(f?.severity||'').toLowerCase();
+            const isFixed = String(f?.state||'').toLowerCase()==='fixed'||!!f?.fixedDate;
+            if (!isFixed && dbActive[s]!==undefined) dbActive[s]++;
+        }
+        const dbTotalActive = Object.values(dbActive).reduce((a,b)=>a+b,0);
+        lines.push(`  Active bySev (used for C/H/M/L): C:${dbActive.critical} H:${dbActive.high} M:${dbActive.medium} L:${dbActive.low} (total: ${dbTotalActive})`);
+        lines.push(`  Fixed bySev: always 0 without state filter — API limitation`);
+
+        if (snap) {
+            const cachedFixed = snap.totalFixed;
+            const liveRate = (dbTotalActive + cachedFixed) > 0 ? (cachedFixed / (dbTotalActive + cachedFixed) * 100) : 0;
+            lines.push('');
+            lines.push(`<span class="head">═══ FIX RATE (from cache) ═══</span>`);
+            lines.push(`  ${cachedFixed} fixed / (${dbTotalActive} active + ${cachedFixed} fixed) = <span class="ok">${liveRate.toFixed(1)}%</span>`);
+        }
+
+        if (sampleFixed.length) {
+            lines.push('');
+            lines.push(`<span class="head">═══ SAMPLE FIXED FINDINGS (up to 3) ═══</span>`);
+            for (const f of sampleFixed) {
+                lines.push(`  alertId:${f.alertId} sev:${f.severity} state:${f.state} fixedDate:${f.fixedDate || 'n/a'} hasFixedDate:${!!f.fixedDate}`);
+            }
+        }
+
+        out.innerHTML = lines.join('\n');
+        st.textContent = `inspected ${findings.length} findings`;
+    }
+
+    async function init() {
+        let clusterDef;
+        try {
+            const res = await fetch('./GHASCluster.json');
+            clusterDef = await res.json();
+        } catch {
+            document.getElementById('clusterCards').innerHTML = '<div style="color:red">Failed to load GHASCluster.json.</div>';
+            return;
+        }
+
+        // Auto-mount from IndexedDB cache (shared across tabs)
+        await loadFromCache();
+        const cachedCount = Object.keys(liveData).length;
+
+        const clusters = clusterDef.clusters.map(cl => {
+            const projects = aggregateProjects(cl.projects);
+            const totals = clusterTotals(projects);
+            return { ...cl, _projects: projects, _totals: totals };
+        });
+
+        window.__clusters = clusters;
+        render(clusters);
+
+        const st = document.getElementById('liveStatus');
+        if (cachedCount > 0) {
+            st.textContent = `📦 Auto-loaded ${cachedCount} repos from cache`;
+            st.style.color = '#adf';
+        } else {
+            st.textContent = 'No cache found — enter PAT and click Load Live Data (or visit GHASResult first)';
+            st.style.color = '#f39c12';
+        }
+    }
+
+    // init() is called AFTER cache.js loads (see script tag below)
 </script>
+<script src="./GHASResult.cache.js"></script>
+<script>init();</script>
 </body>
 </html>
+

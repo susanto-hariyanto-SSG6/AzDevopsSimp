@@ -90,6 +90,52 @@
         max-height: 380px;
         display: block;
     }
+
+    .committer-table-wrapper {
+        margin-top: 10px;
+        border-top: 2px solid #e0e0e0;
+        padding-top: 6px;
+        overflow-y: auto;
+        max-height: 200px;
+    }
+
+    .committer-table-label {
+        font-size: 8pt;
+        font-weight: bold;
+        color: #555;
+        margin-bottom: 4px;
+    }
+
+    .committer-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8pt;
+    }
+
+    .committer-table th {
+        background: #f5f5f5;
+        border-bottom: 1px solid #ddd;
+        padding: 3px 6px;
+        text-align: left;
+        position: sticky;
+        top: 0;
+    }
+
+    .committer-table td {
+        border-bottom: 1px solid #f0f0f0;
+        padding: 3px 6px;
+        vertical-align: top;
+    }
+
+    .committer-table tr.summary-row td {
+        background: #f5f5f5;
+        font-weight: bold;
+        border-bottom: 2px solid #ddd;
+    }
+
+    .committer-table tr.summary-row:first-child td {
+        border-bottom: none;
+    }
 </style>
 </head>
 <body>
@@ -407,7 +453,10 @@
             const alertUrl = `https://advsec.dev.azure.com/${organization}/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/alert/repositories/${sanitizedRepoName}/alerts`;
 
             const wasCached = window.GHASResult.isCached ? window.GHASResult.isCached(alertUrl, currentPat) : false;
-            const findings = await getGhasResult('1f663eb2-dd63-4b51-b000-f0949e3c8ab0', currentPat, sanitizedRepoName);
+            const [findings, commits] = await Promise.all([
+                getGhasResult('1f663eb2-dd63-4b51-b000-f0949e3c8ab0', currentPat, sanitizedRepoName),
+                getCommitsForRepo(repoName, currentPat)
+            ]);
             const fromCache = findings.fromCache === true;
             if(!fromCache){
                 await randomDelay(100, 600);
@@ -416,7 +465,7 @@
             const row = findingsCell.closest('tr');
 
             // render summary below repo name
-            renderFixSummaryForRow(row, findings.value || []);
+            renderFixSummaryForRow(row, findings.value || [], commits.value || []);
 
             const statusSpan = row?.cells?.[0]?.querySelector('.status-indicator');
             if (statusSpan) {
@@ -479,7 +528,11 @@
 
             findingsCell.dataset.loaded = '1';
         } catch (error) {
-            findingsCell.textContent = 'Error fetching findings';
+            findingsCell.textContent = '';
+            const errSpan = document.createElement('span');
+            errSpan.style.cssText = 'color:#c0392b;font-size:11px;';
+            errSpan.textContent = `Error: ${error.message}`;
+            findingsCell.appendChild(errSpan);
             console.error('Error fetching GHAS findings:', error);
         } finally {
             findingsCell.dataset.loading = '0';
@@ -487,16 +540,9 @@
     }
 
     function clearCacheForRepo(sanitizedRepoName) {
-        // Clear cache for this specific repo
-        const SS_PREFIX = "ghas:";
-        const keysToRemove = [];
-        for (let i = 0; i < sessionStorage.length; i++) {
-            const k = sessionStorage.key(i);
-            if (k && k.startsWith(SS_PREFIX) && k.includes(sanitizedRepoName)) {
-                keysToRemove.push(k);
-            }
+        if (window.GHASResult?.clearCacheByPattern) {
+            window.GHASResult.clearCacheByPattern(sanitizedRepoName);
         }
-        keysToRemove.forEach(k => sessionStorage.removeItem(k));
     }
 
     function getFindingLocationText(finding) {
@@ -624,26 +670,8 @@
         const primary = cve[0] || cwe[0] || '';
         return { primary, cve, cwe, rawTags };
     }
-    function toLocalDay(dateValue) {
-        if (!dateValue) return null;
-        const d = new Date(dateValue);
-        if (Number.isNaN(d.getTime())) return null;
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    }
-
-    function dayDiffFromToday(dateValue) {
-        const d = toLocalDay(dateValue);
-        if (!d) return -1;
-
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const msPerDay = 24 * 60 * 60 * 1000;
-        return Math.floor((today - d) / msPerDay); // 0=today, 1=yesterday, ... 7=H-7
-    }
-
     function summarizeFixByDay(findings) {
         const items = Array.isArray(findings) ? findings : [];
-        const fixByDay = Array(8).fill(0); // H0..H7
         const knownSev = ['critical', 'high', 'medium', 'low'];
         const totalBySev = { critical: 0, high: 0, medium: 0, low: 0 };
         const fixedBySev = { critical: 0, high: 0, medium: 0, low: 0 };
@@ -652,36 +680,24 @@
         for (const f of items) {
             const state = String(f?.state || '').toLowerCase();
             const sev = String(f?.severity || '').toLowerCase();
-            const fixedDate = f?.fixedDate || f?.lastSeenDate || null;
             const isFixed = state === 'fixed' || !!f?.fixedDate;
 
             if (knownSev.includes(sev)) totalBySev[sev]++;
-
             if (!isFixed) continue;
 
             allFixed++;
             if (knownSev.includes(sev)) fixedBySev[sev]++;
-
-            const diff = dayDiffFromToday(fixedDate);
-            if (diff >= 0 && diff <= 7) {
-                fixByDay[diff]++;
-            }
         }
 
-        return {
-            allCase: items.length,
-            allFixed,
-            fixByDay,
-            totalBySev,
-            fixedBySev
-        };
+        return { allCase: items.length, allFixed, totalBySev, fixedBySev };
     }
 
-    function renderFixSummaryForRow(row, findings) {
+    function renderFixSummaryForRow(row, findings, commits) {
         const summaryEl = row?.cells?.[1]?.querySelector('.repo-summary');
         if (!summaryEl) return;
 
         const s = summarizeFixByDay(findings);
+        summaryEl.innerHTML = '';
 
         const sevConfig = [
             { key: 'critical', label: 'C', color: '#c0392b' },
@@ -690,33 +706,169 @@
             { key: 'low',      label: 'L', color: '#888888' },
         ];
 
-        summaryEl.innerHTML = '';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'committer-table-wrapper';
 
-        const prefix = document.createElement('span');
-        prefix.textContent = 'Case (C|H|M|L): ';
-        summaryEl.appendChild(prefix);
+        const table = document.createElement('table');
+        table.className = 'committer-table';
 
-        sevConfig.forEach((cfg, i) => {
-            if (i > 0) summaryEl.appendChild(document.createTextNode(' | '));
-            const span = document.createElement('span');
-            span.style.color = cfg.color;
-            span.style.fontWeight = 'bold';
-            const total = s.totalBySev[cfg.key] || 0;
-            const fixed = s.fixedBySev[cfg.key] || 0;
-            span.textContent = `${total}-${fixed}`;
-            span.title = `${cfg.key}: ${total} total, ${fixed} fixed`;
-            summaryEl.appendChild(span);
+        // Header: Name | Date | C | H | M | L
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        [{ label: 'Name', color: null }, { label: 'Date', color: null }, ...sevConfig].forEach(cfg => {
+            const th = document.createElement('th');
+            th.textContent = cfg.label;
+            if (cfg.color) th.style.color = cfg.color;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+
+        // Helper: add Total / Fixed summary rows
+        function addSummaryRow(label, bySev) {
+            const tr = document.createElement('tr');
+            tr.className = 'summary-row';
+
+            const nameTd = document.createElement('td');
+            nameTd.textContent = label;
+
+            const dateTd = document.createElement('td');
+            dateTd.textContent = '-';
+
+            tr.appendChild(nameTd);
+            tr.appendChild(dateTd);
+
+            sevConfig.forEach(cfg => {
+                const td = document.createElement('td');
+                const n = bySev[cfg.key] || 0;
+                td.textContent = n > 0 ? String(n) : '-';
+                td.style.color = n > 0 ? cfg.color : '#ccc';
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+
+        addSummaryRow('Total', s.totalBySev);
+        addSummaryRow('Fixed', s.fixedBySev);
+
+        // Committer rows
+        const commitList = Array.isArray(commits) ? commits : [];
+        const fixedFindings = findings.filter(f => {
+            const state = String(f?.state || '').toLowerCase();
+            return state === 'fixed' || !!f?.fixedDate;
         });
 
-        const dayParts = [];
-        for (let d = 0; d <= 7; d++) {
-            const count = Number(s.fixByDay[d] || 0);
-            if (count > 0) dayParts.push(`H-${d}: ${count}`);
+        if (fixedFindings.length > 0 && commitList.length > 0) {
+            const knownSev = ['critical', 'high', 'medium', 'low'];
+            const byCommitter = {};
+
+            for (const f of fixedFindings) {
+                const closest = findClosestCommitter(f.fixedDate, commitList);
+                const name = closest?.author?.name || closest?.committer?.name || 'Unknown';
+                const sev = String(f?.severity || '').toLowerCase();
+                const fd = f.fixedDate ? new Date(f.fixedDate) : null;
+                if (!byCommitter[name]) {
+                    byCommitter[name] = { critical: 0, high: 0, medium: 0, low: 0, latestDate: null };
+                }
+                if (knownSev.includes(sev)) byCommitter[name][sev]++;
+                if (fd && !isNaN(fd) && (!byCommitter[name].latestDate || fd > byCommitter[name].latestDate)) {
+                    byCommitter[name].latestDate = fd;
+                }
+            }
+
+            Object.entries(byCommitter)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .forEach(([name, data]) => {
+                    const tr = document.createElement('tr');
+
+                    const nameTd = document.createElement('td');
+                    nameTd.textContent = name.slice(0, 10);
+                    nameTd.title = name;
+
+                    const dateTd = document.createElement('td');
+                    dateTd.textContent = data.latestDate
+                        ? data.latestDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: '2-digit' })
+                        : '-';
+
+                    tr.appendChild(nameTd);
+                    tr.appendChild(dateTd);
+
+                    sevConfig.forEach(cfg => {
+                        const td = document.createElement('td');
+                        const count = data[cfg.key] || 0;
+                        td.textContent = count > 0 ? String(count) : '-';
+                        td.style.color = count > 0 ? cfg.color : '#ccc';
+                        td.style.fontWeight = count > 0 ? 'bold' : 'normal';
+                        tr.appendChild(td);
+                    });
+
+                    tbody.appendChild(tr);
+                });
         }
-        if (dayParts.length) {
-            summaryEl.appendChild(document.createTextNode('\n' + dayParts.join(' | ')));
+
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+        summaryEl.appendChild(wrapper);
+    }
+
+    function findClosestCommitter(fixedDate, commits) {
+        if (!commits || commits.length === 0 || !fixedDate) return null;
+        const target = new Date(fixedDate).getTime();
+        if (isNaN(target)) return null;
+        let closest = null;
+        let minDiff = Infinity;
+        for (const commit of commits) {
+            const t = new Date(commit.author?.date || commit.committer?.date).getTime();
+            if (isNaN(t)) continue;
+            const diff = Math.abs(target - t);
+            if (diff < minDiff) { minDiff = diff; closest = commit; }
+        }
+        return closest;
+    }
+
+    async function getCommitsForRepo(repoName, pat) {
+        try {
+            const allRepoData = JSON.parse(allrepojson);
+            const match = allRepoData.data.find(r => r.repoName === repoName);
+            if (!match) return { value: [], branch: null };
+
+            const baseUrl = `https://dev.azure.com/${organization}/${encodeURIComponent(match.projectName)}` +
+                `/_apis/git/repositories/${encodeURIComponent(match.repoName)}/commits`;
+
+            const refsUrl = `https://dev.azure.com/${organization}/${encodeURIComponent(match.projectName)}` +
+                `/_apis/git/repositories/${encodeURIComponent(match.repoName)}/refs?filter=heads/&api-version=7.1-preview.1`;
+
+            let actualBranches = [];
+            try {
+                const refsData = await window.GHASResult.fetchData(refsUrl, pat);
+                actualBranches = (refsData?.value || []).map(r => r.name.replace('refs/heads/', ''));
+            } catch {}
+
+            const priorityBranches = ['prod', 'production', 'master'];
+            for (const priority of priorityBranches) {
+                const actualName = actualBranches.find(b => b.toLowerCase() === priority) ?? priority;
+                try {
+                    const params = new URLSearchParams({
+                        'api-version': '7.1-preview.1',
+                        'searchCriteria.itemVersion.versionType': 'Branch',
+                        'searchCriteria.itemVersion.version': actualName
+                    });
+                    const data = await window.GHASResult.fetchData(`${baseUrl}?${params}`, pat);
+                    const commits = Array.isArray(data?.value) ? data.value : [];
+                    if (commits.length > 0) return { value: commits, branch: actualName };
+                } catch {}
+            }
+
+            // Fallback: default branch
+            const fallback = await window.GHASResult.fetchData(`${baseUrl}?api-version=7.1-preview.1`, pat);
+            return { value: Array.isArray(fallback?.value) ? fallback.value : [], branch: null };
+        } catch {
+            return { value: [], branch: null };
         }
     }
+
 
 </script>
 <script src="./GHASResult.cache.js"></script>

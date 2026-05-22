@@ -1,0 +1,303 @@
+{
+  "clusters": [
+    {
+      "id": "cluster-1",
+      "name": "Cluster 1",
+      "projects": [
+        {
+          "name": "SSG1-C3-BC Backend 2010",
+          "repos": "SSG1-C3-BC Backend 2010"
+        },
+        {
+          "name": "SSG1-C3-BC Backend 2015",
+          "repos": "SSG1-C3-BC Backend 2015"
+        },
+        {
+          "name": "SSG1-C3-Sisfo CE",
+          "repos": [
+            "SSG6-C1-APISisfoCE-LINQ",
+            "SSG6-CI-SisfoCE-DbFacilitator-EmailJobs",
+            "SSG6-C1-SISFOCE-SISFOPS-API"
+          ]
+        },
+        {
+          "name": "SSG1-C3-Sisfo CE Front End",
+          "repos": "SSG1-C3-Sisfo CE Front End"
+        },
+        {
+          "name": "SSG1-C3-User Binus Center",
+          "repos": "SSG1-C3-User Binus Center"
+        },
+        {
+          "name": "SSG1-C3-EmployeeProfileAssessment",
+          "repos": "SSG1-C3-EmployeeProfileAssessment"
+        },
+        {
+          "name": "SSG1-C3-Honor Binus Center",
+          "repos": "SSG1-C3-Honor Binus Center"
+        },
+        {
+          "name": "SSG1-C3-CBTBackEnd",
+          "repos": "SSG1-C3-CBTBackEnd"
+        },
+        {
+          "name": "SSG1-C3-CBTFrontEnd",
+          "repos": "SSG1-C3-CBTFrontEnd"
+        },
+        {
+          "name": "SSG6-C1-API_Development_Aplikasi_Web_Honor_20220530",
+          "repos": "SSG6-C1-API_Development_Aplikasi_Web_Honor_20220530"
+        },
+        {
+          "name": "SSG6-C1-BinusCenter-EmailReminder",
+          "repos": "SSG6-C1-BinusCenter-EmailReminder"
+        },
+        {
+          "name": "SSG6-C1-Development_Aplikasi_Web_Honor_20220530",
+          "repos": "SSG6-C1-Development_Aplikasi_Web_Honor_20220530"
+        }
+      ]
+    },
+    {
+      "id": "cluster-2",
+      "name": "Cluster 2",
+      "projects": [
+        {
+          "name": "SSG1-C3-CRR",
+          "repos": [
+            "SSG5-C1-CLDSA-FE",
+            "SSG1-C3-CRR-FE",
+            "SSG6-C2-ALESA-Scheduler",
+            "SSG1-C3-CRR-API"
+          ]
+        },
+        {
+          "name": "SSG1-C3-Development vehicle reservation v2",
+          "repos": "SSG1-C3-Development vehicle reservation v2"
+        },
+        {
+          "name": "SSG1-C3-LostAndFound",
+          "repos": "SSG1-C3-LostAndFound"
+        },
+        {
+          "name": "SSG1-C3-RoomReservationUniv",
+          "repos": "SSG1-C3-RoomReservationUniv"
+        },
+        {
+          "name": "SSG1-C3-WebCopyCenter",
+          "repos": [
+            "SSG1-C3-WebCopyCenter",
+            "SSG6-C2-WebCopyCenterAPI"
+          ]
+        },
+        {
+          "name": "SSG3-C2-BinusSquare",
+          "repos": [
+            "SSG3-C2-BinusSquare-NewStaffPortal",
+            "SSG3-C2-BinusSquare-NewBoarderPortal",
+            "BSQagent",
+            "SSG3-C2-BinusSquare-Web-API",
+            "SSG5-C1-BSQShuttleAPI",
+            "SSG5-C1-BSQMobileAPI",
+            "SSG6-C2-BSQLogNightMonitoringAPI"
+          ]
+        },
+        {
+          "name": "SSG3-C2-KnowledgeManagement",
+          "repos": [
+            "SSG3-C2-VBLReservation",
+            "SSG5-C1-KMI-API",
+            "SSG6-C2-CMSVideoProduction",
+            "SSG5-C1-KMIDataHub-API",
+            "SSG5-C1-Integration-BeelajarToDAMS",
+            "SSG6-C2-Integration-HubGreatNusatoDAMS",
+            "SSG6-C2-Integration-GreatNusaToDAMS",
+            "SSG6-C2-CMSVideoProduction-API",
+            "SSG3-C2-KMIAPI"
+          ]
+        },
+        {
+          "name": "SSG5-C1-API-RoomReservationSerpong",
+          "repos": "SSG5-C1-API-RoomReservationSerpong"
+        },
+        {
+          "name": "SSG5-C1-BSQWebAPI",
+          "repos": "SSG5-C1-BSQWebAPI"
+        },
+        {
+          "name": "SSG5-C1-BuildingInformationSystem",
+          "repos": [
+            "SSG5-C1-BuildingInformationSystem-FE",
+            "SSG5-C1-BuildingInformationSystem-API"
+          ]
+        },
+        {
+          "name": "SSG5-C1-Dashboard_BINUS_Square",
+          "repos": "SSG5-C1-Dashboard_BINUS_Square"
+        },
+        {
+          "name": "SSG5-C1-GA_Data_Hub",
+          "repos": [
+            "SSG5-C1-GA_Data_Hub",
+            "SSG5-C1-GA_Data_Hub_API"
+          ]
+        },
+        {
+          "name": "SSG5-C1-HousingProgramBinusSquare",
+          "repos": "SSG5-C1-HousingProgramBinusSquare"
+        },
+        {
+          "name": "SSG5-C1-LegalDocumentRequest",
+          "repos": [
+            "SSG5-C1-LegalDocumentRequestBE",
+            "SSG5-C1-LegalDocumentRequestFE",
+            "SSG5-C1-LegalDR-API",
+            "SSG5-C1-LegalDR-Agent"
+          ]
+        },
+        {
+          "name": "SSG5-C1-NewBinusstore",
+          "repos": [
+            "SSG5-C1-NewBinusstore",
+            "SSG5-C1-NewBinusStore-VA",
+            "SSG5-C1-NewBinusstore-API"
+          ]
+        },
+        {
+          "name": "SSG5-C1-UnivMyDashboardxBSQ",
+          "repos": "SSG5-C1-UnivMyDashboardxBSQ"
+        },
+        {
+          "name": "SSG5-C1-Vehicle_Reservation_API",
+          "repos": [
+            "SSG6-C2-Vehicle_Reservation_Scheduler",
+            "SSG5-C1-Vehicle_Reservation_API"
+          ]
+        },
+        {
+          "name": "SSG5-C1-VehicleFunctionAPI",
+          "repos": "SSG5-C1-VehicleFunctionAPI"
+        },
+        {
+          "name": "SSG6-C2-BINUS_Parking",
+          "repos": "SSG6-C2-BINUS_Parking"
+        },
+        {
+          "name": "SSG6-C2-BMHelpDesk",
+          "repos": [
+            "SSG6-C2-BMHelpDesk",
+            "SSG6-C2-BMHelpdesk-API"
+          ]
+        },
+        {
+          "name": "SSG6-C2-PortalColega",
+          "repos": [
+            "SSG6-C2-PortalColega",
+            "SSG6-C2-PortalColega-API"
+          ]
+        },
+        {
+          "name": "SSG6-C2-SobatKI",
+          "repos": [
+            "SSG6-C2-SobatKI",
+            "SSG6-C2-SobatKI-API"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cluster-3",
+      "name": "Cluster 3",
+      "projects": [
+        {
+          "name": "SSG1-C3-BIDCAPI",
+          "repos": "SSG1-C3-BIDCAPI"
+        },
+        {
+          "name": "SSG1-C3-Microsite Graduation",
+          "repos": [
+            "SSG1-C3-Microsite Graduation-API",
+            "SSG1-C3-Microsite Graduation"
+          ]
+        },
+        {
+          "name": "SSG6-C3-Beelajar2.0",
+          "repos": [
+            "SSG6-C3-Beelajar2.0-FE",
+            "SSG6-C3-Beelajar2.0-BE"
+          ]
+        },
+        {
+          "name": "SSG6-C3-MoM_Application",
+          "repos": [
+            "SSG6-C3-MoM_Application-Scheduler",
+            "SSG6-C3-MoM_Application",
+            "SSG-C3-MoM_Application_API"
+          ]
+        },
+        {
+          "name": "SSG6-C3-Dacum_2.0",
+          "repos": "SSG6-C3-Dacum_2.0"
+        },
+        {
+          "name": "SSG6-C3-AI_Learning_Personalization",
+          "repos": [
+            "SSG6-C3-API_WebBackEnd_AI_Learning_Personalization",
+            "SSG6-C3-AI_Learning_Personalization"
+          ]
+        },
+        {
+          "name": "SSG6-C3-BIDC-Pengembangan-Program-Baru",
+          "repos": [
+            "SSG6-C3-BIDC-Pengembangan-Program-Baru-FE",
+            "SSG6-C3-BIDC-Pengembangan-Program-Baru-Scheduler",
+            "SSG6-C3-BIDC-Pengembangan-Program-Baru-API"
+          ]
+        },
+        {
+          "name": "SSG6-C3-E-PDP_Online",
+          "repos": [
+            "SSG6-C3-E-PDP_Online",
+            "SSG6-C3-E-PDP_API"
+          ]
+        },
+        {
+          "name": "SSG6-C3-Facilitator_Management_Application",
+          "repos": [
+            "SSG6-C3-Facilitator_Management_Application_FE",
+            "SSG6-C3-Facilitator_Management_Application_API"
+          ]
+        },
+        {
+          "name": "SSG6-C3-RO-EOFFICE",
+          "repos": [
+            "SSG6-C3-RO-EOFFICE-API",
+            "SSG6-C3-RO-EOFFICE-FE"
+          ]
+        },
+        {
+          "name": "SSG1-C3-Dashboard-Rectorate",
+          "repos": [
+            "SSG1-C3-Dashboard-Rectorate-API",
+            "SSG6-C3-AgentEmailReminder",
+            "SSG6-C3-WorkdayScheduler"
+          ]
+        },
+        {
+          "name": "SSG3-C2-BCLND",
+          "repos": [
+            "SSG3-C2-BCLND-BCLNDBackend",
+            "BclndFrontEnd",
+            "BclndAPI",
+            "SSG6-C3-BclndScheduler",
+            "SSG6_C3_NewBCLDAPI"
+          ]
+        },
+        {
+          "name": "SSG3-Cluster2-CorpuBE",
+          "repos": "SSG3-Cluster2-CorpuBE-Frontend"
+        }
+      ]
+    }
+  ]
+}
