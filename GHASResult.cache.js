@@ -29,6 +29,46 @@
     return SS_PREFIX + url + "|u:" + hash(String(pat || ""));
   }
 
+  // Strip continuationToken from URL before making a cache key
+  function makeBaseKey(url, pat) {
+    const u = new URL(url);
+    u.searchParams.delete('continuationToken');
+    return makeKey(u.toString(), pat); // reuse your existing makeKey logic
+  }
+
+  // Merge new items into the existing cached array (deduped by alertId)
+  function appendCache(key, newItems) {
+    try {
+      const now = Date.now();
+      let existing = [];
+
+      try {
+        const hit = getCache(key);
+        if (hit?.payload?.value && Array.isArray(hit.payload.value)) {
+          existing = hit.payload.value;
+        }
+      } catch {}
+
+      const seen = new Set(existing.map(f => String(f?.alertId ?? '')));
+      for (const item of newItems) {
+        const id = String(item?.alertId ?? '');
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          existing.push(item);
+        }
+      }
+
+      sessionStorage.setItem(
+        key,
+        JSON.stringify({
+          ts: now,
+          exp: now + randomTtl(),
+          payload: { value: existing }
+        })
+      );
+    } catch {}
+  }
+
   function fresh(entry) {
     if (!entry) return false;
 
@@ -58,6 +98,8 @@
       severity: f?.severity,
       state: f?.state,
       alertType: f?.alertType,
+      lastSeenDate: f?.lastSeenDate ?? null,
+      fixedDate: f?.fixedDate ?? null,
       physicalLocations: [location],
       tools
     };
@@ -120,6 +162,7 @@
     } catch {}
   }
 
+
   window.GHASResult.fetchData = async (url, pat) => {
     const key = makeKey(url, pat);
     const hit = getCache(key);
@@ -132,21 +175,30 @@
   };
 
   window.GHASResult.fetchDataWithHeaders = async (url, pat) => {
-    const key = makeKey(url, pat);
-    const hit = getCache(key);
+    const baseKey = makeBaseKey(url, pat);
+    
+    // Parse the URL to check if this is a continuation page
+    const urlObj = new URL(url);
+    const isContinuation = urlObj.searchParams.has('continuationToken');
 
-    if (fresh(hit)) {
-      const payload = hit.payload || {};
-      return {
-        data: { __compactCache: true, ...payload }, // force marker on hit
-        headers: { get: () => null },
-        __fromCache: true
-      };
+    // Only serve from cache on the FIRST page (no continuation token)
+    if (!isContinuation) {
+      const hit = getCache(baseKey);
+      if (fresh(hit)) {
+        return {
+          data: { __compactCache: true, value: hit.payload?.value ?? [] },
+          headers: { get: () => null },
+          __fromCache: true
+        };
+      }
     }
 
+    // Always fetch from network for continuation pages (or cache miss on first page)
     const network = await baseJsonWithHeaders(url, pat);
     const compact = stripByUrl(url, network.data);
-    setCache(key, compact);
+
+    const pageItems = Array.isArray(compact?.value) ? compact.value : [];
+    appendCache(baseKey, pageItems);
 
     return {
       data: network.data,

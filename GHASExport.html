@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GHAS Export</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 16px;
+    }
+
+    #status {
+      margin-bottom: 12px;
+    }
+
+    #btnExport {
+      margin: 12px 0;
+      padding: 6px 12px;
+    }
+
+    #previewInfo {
+      margin: 8px 0;
+      font-size: 13px;
+      color: #555;
+    }
+
+    #previewWrap {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      overflow: auto;
+      max-height: 70vh;
+      background: #fff;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12px;
+    }
+
+    th, td {
+      border: 1px solid #e5e5e5;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f7f7f7;
+      z-index: 1;
+    }
+
+    tr:nth-child(even) td {
+      background: #fafafa;
+    }
+
+    .muted {
+      color: #777;
+    }
+  </style>
+</head>
+<body>
+  <h3 id="title">GHAS Export</h3>
+  <div id="status">Reading cache...</div>
+  <button id="btnExport" disabled>Export CSV (Excel)</button>
+  <div id="previewInfo" class="muted">No data loaded.</div>
+  <div id="previewWrap">
+    <table id="previewTable">
+      <thead>
+        <tr>
+          <th>alertId</th>
+          <th>title</th>
+          <th>state</th>
+          <th>severity</th>
+          <th>alertType</th>
+          <th>filePath</th>
+          <th>lineStart</th>
+          <th>lineEnd</th>
+          <th>columnStart</th>
+          <th>columnEnd</th>
+          <th>firstSeenDate</th>
+          <th>lastSeenDate</th>
+          <th>fixedDate</th>
+        </tr>
+      </thead>
+      <tbody id="previewBody">
+        <tr>
+          <td colspan="13" class="muted">No data loaded.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+    const pat = hashParams.get('pat') || sessionStorage.getItem('ado_pat') || '';
+
+    if (pat) {
+        sessionStorage.setItem('ado_pat', pat);
+        if (window.location.hash) {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+    }
+
+    function qp(k) {
+      return new URLSearchParams(location.search).get(k) || '';
+    }
+
+    function csvEscape(v) {
+      const s = String(v ?? '');
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    }
+
+    function getLocation(f) {
+      const loc = f?.physicalLocations?.[0] || f?.physicalLocation?.[0] || f?.physicalLocation || {};
+      const reg = loc?.region || {};
+      return {
+        filePath: loc?.filePath || loc?.filepath || '',
+        lineStart: reg.lineStart ?? reg.startLine ?? '',
+        lineEnd: reg.lineEnd ?? reg.endLine ?? '',
+        colStart: reg.columnStart ?? reg.startColumn ?? '',
+        colEnd: reg.columnEnd ?? reg.endColumn ?? ''
+      };
+    }
+
+    function toCsv(findings) {
+      const headers = [
+        'alertId','title','state','severity','alertType',
+        'filePath','lineStart','lineEnd','columnStart','columnEnd',
+        'firstSeenDate','lastSeenDate','fixedDate'
+      ];
+      const lines = [headers.join(',')];
+      for (const f of findings) {
+        const loc = getLocation(f);
+        const row = [
+          f?.alertId, f?.title, f?.state, f?.severity, f?.alertType,
+          loc.filePath, loc.lineStart, loc.lineEnd, loc.colStart, loc.colEnd,
+          f?.firstSeenDate || '', f?.lastSeenDate || '', f?.fixedDate || ''
+        ].map(csvEscape).join(',');
+        lines.push(row);
+      }
+      return lines.join('\r\n');
+    }
+
+    function download(filename, content) {
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function renderPreview(findings) {
+      const body = document.getElementById('previewBody');
+      const info = document.getElementById('previewInfo');
+
+      body.innerHTML = '';
+
+      if (!Array.isArray(findings) || findings.length === 0) {
+        body.innerHTML = '<tr><td colspan="13" class="muted">No findings found.</td></tr>';
+        info.textContent = 'No findings found.';
+        return;
+      }
+
+      info.textContent = `Previewing ${findings.length} finding(s).`;
+
+      for (const f of findings) {
+        const loc = getLocation(f);
+        const tr = document.createElement('tr');
+
+        [
+          f?.alertId ?? '',
+          f?.title ?? '',
+          f?.state ?? '',
+          f?.severity ?? '',
+          f?.alertType ?? '',
+          loc.filePath,
+          loc.lineStart,
+          loc.lineEnd,
+          loc.colStart,
+          loc.colEnd,
+          f?.firstSeenDate || '',
+          f?.lastSeenDate || '',
+          f?.fixedDate || ''
+        ].forEach(value => {
+          const td = document.createElement('td');
+          td.textContent = value;
+          tr.appendChild(td);
+        });
+
+        body.appendChild(tr);
+      }
+    }
+
+    function mdEscape(v) {
+      return String(v ?? '')
+        .replace(/\r?\n/g, '<br>')
+        .replace(/\|/g, '\\|');
+    }
+
+    function toMarkdown(findings, repo) {
+      const lines = [
+        `# GHAS Export - ${repo || ''}`,
+        '',
+        `Total findings: ${Array.isArray(findings) ? findings.length : 0}`,
+        '',
+        '| alertId | title | state | severity | alertType | filePath | lineStart | lineEnd | columnStart | columnEnd | firstSeenDate | lastSeenDate | fixedDate |',
+        '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
+      ];
+
+      for (const f of findings) {
+        const loc = getLocation(f);
+        lines.push([
+          mdEscape(f?.alertId),
+          mdEscape(f?.title),
+          mdEscape(f?.state),
+          mdEscape(f?.severity),
+          mdEscape(f?.alertType),
+          mdEscape(loc.filePath),
+          mdEscape(loc.lineStart),
+          mdEscape(loc.lineEnd),
+          mdEscape(loc.colStart),
+          mdEscape(loc.colEnd),
+          mdEscape(f?.firstSeenDate || ''),
+          mdEscape(f?.lastSeenDate || ''),
+          mdEscape(f?.fixedDate || '')
+        ].join(' | ').replace(/^/, '| ').concat(' |'));
+      }
+
+      return lines.join('\n');
+    }
+
+    async function fetchAllFindings(baseApiUrl, pat) {
+      const allFindings = [];
+      let continuationToken = null;
+      let page = 0;
+
+      document.getElementById('status').textContent = 'Fetching page 1...';
+
+      while (true) {
+        const params = new URLSearchParams({
+          'api-version': '7.2-preview.1',
+          '$top': '100'
+        });
+
+        if (continuationToken) {
+          params.set('continuationToken', continuationToken);
+        }
+
+        const url = `${baseApiUrl}?${params.toString()}`;
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Basic ${btoa(':' + pat)}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        const items = Array.isArray(data?.value) ? data.value : [];
+        allFindings.push(...items);
+
+        page++;
+        document.getElementById('status').textContent = `Fetching... page ${page}, total so far: ${allFindings.length}`;
+
+        const nextToken =
+          response.headers.get('x-ms-continuationtoken') ||
+          response.headers.get('X-MS-ContinuationToken');
+
+        if (!nextToken || nextToken === continuationToken || items.length === 0) {
+          break;
+        }
+
+        continuationToken = nextToken;
+      }
+
+      return allFindings;
+    }
+
+    (async function init() {
+      const repo = qp('repo');
+      const apiUrl = qp('apiUrl');
+
+      document.getElementById('title').textContent = `GHAS Export - ${repo}`;
+
+      if (!apiUrl) {
+        document.getElementById('status').textContent = 'Missing apiUrl parameter.';
+        return;
+      }
+
+      if (!pat) {
+        document.getElementById('status').textContent = 'Missing PAT. Open this page from GHASResult.';
+        return;
+      }
+
+      let findings = [];
+      try {
+        findings = await fetchAllFindings(apiUrl, pat);
+        renderPreview(findings);
+        document.getElementById('status').textContent = `Ready. Total findings: ${findings.length}`;
+        document.getElementById('btnExport').disabled = false;
+      } catch (e) {
+        document.getElementById('status').textContent = `Error: ${e.message}`;
+        console.error(e);
+        return;
+      }
+
+      document.getElementById('btnExport').textContent = 'Export Markdown';
+
+      document.getElementById('btnExport').addEventListener('click', () => {
+        const md = toMarkdown(findings, repo);
+        const safe = repo.replace(/[^\w.-]+/g, '_');
+        const file = `GHAS_${safe}_${new Date().toISOString().slice(0,10)}.md`;
+        download(file, md);
+      });
+    })();
+  </script>
+</body>
+</html>

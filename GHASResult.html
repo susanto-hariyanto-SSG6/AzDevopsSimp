@@ -77,6 +77,19 @@
         color:#888;
         margin-left:18px;
     }
+
+    .repo-summary{
+        margin-top:6px;
+        font-size:9pt;
+        color:#666;
+        line-height:1.4;
+        white-space: pre-line; /* allow \n to render as new line */
+    }
+    table tr td:nth-child(3) {
+        overflow-y:scroll;
+        max-height: 380px;
+        display: block;
+    }
 </style>
 </head>
 <body>
@@ -353,12 +366,27 @@
         repoLink.textContent = repo.repoName;
         valueCell.appendChild(repoLink);
 
+        // ADD ONLY THIS: export link
+        const exportLink = document.createElement('a');
+        const apiUrl = `https://advsec.dev.azure.com/${organization}/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/alert/repositories/${repo.repoName.replace(/[\s_@#\$%\^&\*!]/g, '-')}/alerts`;
+        exportLink.href = `./GHASExport.html?apiUrl=${encodeURIComponent(apiUrl)}&repo=${encodeURIComponent(repo.repoName)}#pat=${encodeURIComponent(currentPat)}`;
+        exportLink.target = '_blank';
+        exportLink.style.marginLeft = '10px';
+        exportLink.style.fontSize = '9pt';
+        exportLink.textContent = '[Export]';
+        valueCell.appendChild(exportLink);
+
+        // summary placeholder (below repo name)
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'repo-summary';
+        summaryDiv.textContent = 'Case (C|H|M|L): loading...';
+        valueCell.appendChild(summaryDiv);
+
         const findingsCell = document.createElement('td');
         findingsCell.textContent = 'Waiting to load...';
         findingsCell.dataset.repoName = repo.repoName;
         findingsCell.dataset.loaded = '0';
         findingsCell.dataset.loading = '0';
-        // removed: findingsCell.dataset.statusSpan = statusSpan;
 
         tableRepoRow.appendChild(labelCell);
         tableRepoRow.appendChild(valueCell);
@@ -374,7 +402,6 @@
         findingsCell.textContent = 'Loading findings...';
 
         try {
-
             const repoName = findingsCell.dataset.repoName;
             const sanitizedRepoName = repoName.replace(/[\s_@#\$%\^&\*!]/g, '-');
             const alertUrl = `https://advsec.dev.azure.com/${organization}/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/alert/repositories/${sanitizedRepoName}/alerts`;
@@ -383,17 +410,14 @@
             const findings = await getGhasResult('1f663eb2-dd63-4b51-b000-f0949e3c8ab0', currentPat, sanitizedRepoName);
             const fromCache = findings.fromCache === true;
             if(!fromCache){
-                await randomDelay(800, 2000);
+                await randomDelay(100, 600);
             }
 
-            console.log('[GHASResult] status decision', {
-                repoName,
-                sanitizedRepoName,
-                fromCache,
-                findingCount: findings.value?.length || 0
-            });
-
             const row = findingsCell.closest('tr');
+
+            // render summary below repo name
+            renderFixSummaryForRow(row, findings.value || []);
+
             const statusSpan = row?.cells?.[0]?.querySelector('.status-indicator');
             if (statusSpan) {
                 if (fromCache) {
@@ -409,8 +433,7 @@
                     statusSpan.style.color = '#28a745';
                     statusSpan.style.cursor = 'default';
                     statusSpan.onclick = null;
-                }
-                console.log('[GHASResult] status rendered', { repoName, text: statusSpan.textContent });
+                }                
             }
 
             findingsCell.innerHTML = '';
@@ -601,6 +624,100 @@
         const primary = cve[0] || cwe[0] || '';
         return { primary, cve, cwe, rawTags };
     }
+    function toLocalDay(dateValue) {
+        if (!dateValue) return null;
+        const d = new Date(dateValue);
+        if (Number.isNaN(d.getTime())) return null;
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
+    function dayDiffFromToday(dateValue) {
+        const d = toLocalDay(dateValue);
+        if (!d) return -1;
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const msPerDay = 24 * 60 * 60 * 1000;
+        return Math.floor((today - d) / msPerDay); // 0=today, 1=yesterday, ... 7=H-7
+    }
+
+    function summarizeFixByDay(findings) {
+        const items = Array.isArray(findings) ? findings : [];
+        const fixByDay = Array(8).fill(0); // H0..H7
+        const knownSev = ['critical', 'high', 'medium', 'low'];
+        const totalBySev = { critical: 0, high: 0, medium: 0, low: 0 };
+        const fixedBySev = { critical: 0, high: 0, medium: 0, low: 0 };
+        let allFixed = 0;
+
+        for (const f of items) {
+            const state = String(f?.state || '').toLowerCase();
+            const sev = String(f?.severity || '').toLowerCase();
+            const fixedDate = f?.fixedDate || f?.lastSeenDate || null;
+            const isFixed = state === 'fixed' || !!f?.fixedDate;
+
+            if (knownSev.includes(sev)) totalBySev[sev]++;
+
+            if (!isFixed) continue;
+
+            allFixed++;
+            if (knownSev.includes(sev)) fixedBySev[sev]++;
+
+            const diff = dayDiffFromToday(fixedDate);
+            if (diff >= 0 && diff <= 7) {
+                fixByDay[diff]++;
+            }
+        }
+
+        return {
+            allCase: items.length,
+            allFixed,
+            fixByDay,
+            totalBySev,
+            fixedBySev
+        };
+    }
+
+    function renderFixSummaryForRow(row, findings) {
+        const summaryEl = row?.cells?.[1]?.querySelector('.repo-summary');
+        if (!summaryEl) return;
+
+        const s = summarizeFixByDay(findings);
+
+        const sevConfig = [
+            { key: 'critical', label: 'C', color: '#c0392b' },
+            { key: 'high',     label: 'H', color: '#e67e22' },
+            { key: 'medium',   label: 'M', color: '#2980b9' },
+            { key: 'low',      label: 'L', color: '#888888' },
+        ];
+
+        summaryEl.innerHTML = '';
+
+        const prefix = document.createElement('span');
+        prefix.textContent = 'Case (C|H|M|L): ';
+        summaryEl.appendChild(prefix);
+
+        sevConfig.forEach((cfg, i) => {
+            if (i > 0) summaryEl.appendChild(document.createTextNode(' | '));
+            const span = document.createElement('span');
+            span.style.color = cfg.color;
+            span.style.fontWeight = 'bold';
+            const total = s.totalBySev[cfg.key] || 0;
+            const fixed = s.fixedBySev[cfg.key] || 0;
+            span.textContent = `${total}-${fixed}`;
+            span.title = `${cfg.key}: ${total} total, ${fixed} fixed`;
+            summaryEl.appendChild(span);
+        });
+
+        const dayParts = [];
+        for (let d = 0; d <= 7; d++) {
+            const count = Number(s.fixByDay[d] || 0);
+            if (count > 0) dayParts.push(`H-${d}: ${count}`);
+        }
+        if (dayParts.length) {
+            summaryEl.appendChild(document.createTextNode('\n' + dayParts.join(' | ')));
+        }
+    }
+
 </script>
 <script src="./GHASResult.cache.js"></script>
 </body>
