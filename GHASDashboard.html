@@ -218,7 +218,7 @@
                 const fix = { critical:0, high:0, medium:0, low:0 };
                 for (const f of findings) {
                     const sev = String(f?.severity||'').toLowerCase();
-                    const isFixed = String(f?.state||'').toLowerCase() === 'fixed' || !!f?.fixedDate;
+                    const isFixed = String(f?.state||'').toLowerCase() === 'fixed';
                     if (isFixed) { if (fix[sev]!==undefined) fix[sev]++; }
                     else { if (act[sev]!==undefined) act[sev]++; }
                 }
@@ -280,7 +280,7 @@
                 if (!repoSet.has(repoName)) continue;
                 if (!entry?.payload?.value) continue;
                 const fixed = entry.payload.value.filter(f =>
-                    String(f?.state||'').toLowerCase() === 'fixed' || !!f?.fixedDate
+                    String(f?.state||'').toLowerCase() === 'fixed'
                 );
                 if (!result[repoName]) result[repoName] = [];
                 result[repoName].push(...fixed);
@@ -750,7 +750,7 @@
                 const fix = { critical:0, high:0, medium:0, low:0 };
                 for (const f of findings) {
                     const s = String(f?.severity || '').toLowerCase();
-                    const isFixed = String(f?.state || '').toLowerCase() === 'fixed' || !!f?.fixedDate;
+                    const isFixed = String(f?.state || '').toLowerCase() === 'fixed';
                     if (isFixed) { if (fix[s]!==undefined) fix[s]++; }
                     else { if (act[s]!==undefined) act[s]++; }
                 }
@@ -895,7 +895,7 @@
         for (const f of findings) {
             const state  = String(f?.state || '').toLowerCase();
             const sev    = String(f?.severity || '').toLowerCase();
-            const isFixed = state === 'fixed' || !!f?.fixedDate;
+            const isFixed = state === 'fixed';
             if (knownSev.includes(sev)) totalBySev[sev]++;
             if (isFixed) { allFixed++; if (knownSev.includes(sev)) fixedBySev[sev]++; }
         }
@@ -905,15 +905,14 @@
         for (const f of findings) {
             const state  = String(f?.state || '').toLowerCase();
             const sev    = String(f?.severity || '').toLowerCase();
-            const isFixed = state === 'fixed' || !!f?.fixedDate;
+            const isFixed = state === 'fixed';
             if (isFixed && dashFixed[sev] !== undefined) dashFixed[sev]++;
         }
 
         // --- Sample fixed-date fields ---
-        const sampleFixed = findings.filter(f => {
-            const state = String(f?.state || '').toLowerCase();
-            return state === 'fixed' || !!f?.fixedDate;
-        }).slice(0, 3);
+        const sampleFixed = findings.filter(f =>
+            String(f?.state || '').toLowerCase() === 'fixed'
+        ).slice(0, 3);
 
         const lines = [];
         lines.push(`<span class="head">═══ CACHE DATA (sessionStorage) ═══</span>`);
@@ -946,7 +945,7 @@
         lines.push(`<span class="head">═══ CALCULATED (GHASResult logic) ═══</span>`);
         lines.push(`  "Total" row  — all findings by sev (active+fixed):`);
         lines.push(`    C:${totalBySev.critical} H:${totalBySev.high} M:${totalBySev.medium} L:${totalBySev.low}`);
-        lines.push(`  "Fixed" row  — isFixed (state=fixed OR fixedDate present):`);
+        lines.push(`  "Fixed" row  — isFixed (state==='fixed' only; reopened alerts excluded):`);
         lines.push(`    C:${fixedBySev.critical} H:${fixedBySev.high} M:${fixedBySev.medium} L:${fixedBySev.low}  (total: ${allFixed})`);
 
         lines.push('');
@@ -954,7 +953,7 @@
         const dbActive = {critical:0,high:0,medium:0,low:0};
         for (const f of findings) {
             const s = String(f?.severity||'').toLowerCase();
-            const isFixed = String(f?.state||'').toLowerCase()==='fixed'||!!f?.fixedDate;
+            const isFixed = String(f?.state||'').toLowerCase()==='fixed';
             if (!isFixed && dbActive[s]!==undefined) dbActive[s]++;
         }
         const dbTotalActive = Object.values(dbActive).reduce((a,b)=>a+b,0);

@@ -36,6 +36,7 @@
         const knownSev = ['critical', 'high', 'medium', 'low'];
         const byCommitter = {};
         for (const f of fixedFindings) {
+            if (String(f?.state || '').toLowerCase() !== 'fixed') continue; // skip reopened
             const closest = findClosestCommitter(f.fixedDate, commits);
             const name = closest?.author?.name || closest?.committer?.name || 'Unknown';
             const sev = String(f?.severity || '').toLowerCase();
@@ -145,14 +146,20 @@
         });
 
         for (const f of fixedFindings) {
+            if (String(f?.state || '').toLowerCase() !== 'fixed') continue; // skip reopened
             const closest = findClosestCommitter(f.fixedDate, commits);
             const name = closest?.author?.name || closest?.committer?.name || 'Unknown';
             const sev = String(f?.severity || '').toLowerCase();
             if (!knownSev.includes(sev)) continue;
             const fd = f.fixedDate ? new Date(f.fixedDate) : null;
-            if (!fd || isNaN(fd)) continue;
 
             if (!byCommitter[name]) byCommitter[name] = zeroBuckets();
+
+            // No fixedDate → can't determine week, fall into older bucket
+            if (!fd || isNaN(fd)) {
+                byCommitter[name].older[sev]++;
+                continue;
+            }
 
             const fdTime = fd.getTime();
             let placed = false;
