@@ -36,7 +36,8 @@
         const knownSev = ['critical', 'high', 'medium', 'low'];
         const byCommitter = {};
         for (const f of fixedFindings) {
-            if (String(f?.state || '').toLowerCase() !== 'fixed') continue; // skip reopened
+            const fState = String(f?.state || '').toLowerCase();
+            if (fState !== 'fixed' && fState !== 'dismissed') continue; // skip reopened/active
             const closest = findClosestCommitter(f.fixedDate, commits);
             const name = closest?.author?.name || closest?.committer?.name || 'Unknown';
             const sev = String(f?.severity || '').toLowerCase();
@@ -146,7 +147,8 @@
         });
 
         for (const f of fixedFindings) {
-            if (String(f?.state || '').toLowerCase() !== 'fixed') continue; // skip reopened
+            const fState = String(f?.state || '').toLowerCase();
+            if (fState !== 'fixed' && fState !== 'dismissed') continue; // skip reopened/active
             const closest = findClosestCommitter(f.fixedDate, commits);
             const name = closest?.author?.name || closest?.committer?.name || 'Unknown';
             const sev = String(f?.severity || '').toLowerCase();

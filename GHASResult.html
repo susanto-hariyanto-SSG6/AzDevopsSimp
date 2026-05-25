@@ -680,7 +680,7 @@
         for (const f of items) {
             const state = String(f?.state || '').toLowerCase();
             const sev = String(f?.severity || '').toLowerCase();
-            const isFixed = state === 'fixed'; // reopened alerts keep fixedDate but state goes back to 'active'
+            const isFixed = state === 'fixed' || state === 'dismissed';
 
             if (knownSev.includes(sev)) totalBySev[sev]++;
             if (!isFixed) continue;
@@ -755,9 +755,10 @@
 
         // Committer rows
         const commitList = Array.isArray(commits) ? commits : [];
-        const fixedFindings = findings.filter(f =>
-            String(f?.state || '').toLowerCase() === 'fixed'
-        );
+        const fixedFindings = findings.filter(f => {
+            const s = String(f?.state || '').toLowerCase();
+            return s === 'fixed' || s === 'dismissed';
+        });
 
         if (fixedFindings.length > 0 && commitList.length > 0) {
             const byCommitter = window.GHASShared.attributeFixedFindings(fixedFindings, commitList);
