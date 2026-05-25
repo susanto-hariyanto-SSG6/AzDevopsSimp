@@ -761,22 +761,7 @@
         });
 
         if (fixedFindings.length > 0 && commitList.length > 0) {
-            const knownSev = ['critical', 'high', 'medium', 'low'];
-            const byCommitter = {};
-
-            for (const f of fixedFindings) {
-                const closest = findClosestCommitter(f.fixedDate, commitList);
-                const name = closest?.author?.name || closest?.committer?.name || 'Unknown';
-                const sev = String(f?.severity || '').toLowerCase();
-                const fd = f.fixedDate ? new Date(f.fixedDate) : null;
-                if (!byCommitter[name]) {
-                    byCommitter[name] = { critical: 0, high: 0, medium: 0, low: 0, latestDate: null };
-                }
-                if (knownSev.includes(sev)) byCommitter[name][sev]++;
-                if (fd && !isNaN(fd) && (!byCommitter[name].latestDate || fd > byCommitter[name].latestDate)) {
-                    byCommitter[name].latestDate = fd;
-                }
-            }
+            const byCommitter = window.GHASShared.attributeFixedFindings(fixedFindings, commitList);
 
             Object.entries(byCommitter)
                 .sort(([a], [b]) => a.localeCompare(b))
@@ -813,64 +798,16 @@
         summaryEl.appendChild(wrapper);
     }
 
-    function findClosestCommitter(fixedDate, commits) {
-        if (!commits || commits.length === 0 || !fixedDate) return null;
-        const target = new Date(fixedDate).getTime();
-        if (isNaN(target)) return null;
-        let closest = null;
-        let minDiff = Infinity;
-        for (const commit of commits) {
-            const t = new Date(commit.author?.date || commit.committer?.date).getTime();
-            if (isNaN(t)) continue;
-            const diff = Math.abs(target - t);
-            if (diff < minDiff) { minDiff = diff; closest = commit; }
-        }
-        return closest;
-    }
-
     async function getCommitsForRepo(repoName, pat) {
-        try {
-            const allRepoData = JSON.parse(allrepojson);
-            const match = allRepoData.data.find(r => r.repoName === repoName);
-            if (!match) return { value: [], branch: null };
-
-            const baseUrl = `https://dev.azure.com/${organization}/${encodeURIComponent(match.projectName)}` +
-                `/_apis/git/repositories/${encodeURIComponent(match.repoName)}/commits`;
-
-            const refsUrl = `https://dev.azure.com/${organization}/${encodeURIComponent(match.projectName)}` +
-                `/_apis/git/repositories/${encodeURIComponent(match.repoName)}/refs?filter=heads/&api-version=7.1-preview.1`;
-
-            let actualBranches = [];
-            try {
-                const refsData = await window.GHASResult.fetchData(refsUrl, pat);
-                actualBranches = (refsData?.value || []).map(r => r.name.replace('refs/heads/', ''));
-            } catch {}
-
-            const priorityBranches = ['prod', 'production', 'master'];
-            for (const priority of priorityBranches) {
-                const actualName = actualBranches.find(b => b.toLowerCase() === priority) ?? priority;
-                try {
-                    const params = new URLSearchParams({
-                        'api-version': '7.1-preview.1',
-                        'searchCriteria.itemVersion.versionType': 'Branch',
-                        'searchCriteria.itemVersion.version': actualName
-                    });
-                    const data = await window.GHASResult.fetchData(`${baseUrl}?${params}`, pat);
-                    const commits = Array.isArray(data?.value) ? data.value : [];
-                    if (commits.length > 0) return { value: commits, branch: actualName };
-                } catch {}
-            }
-
-            // Fallback: default branch
-            const fallback = await window.GHASResult.fetchData(`${baseUrl}?api-version=7.1-preview.1`, pat);
-            return { value: Array.isArray(fallback?.value) ? fallback.value : [], branch: null };
-        } catch {
-            return { value: [], branch: null };
-        }
+        const allRepoData = JSON.parse(allrepojson);
+        const match = allRepoData.data.find(r => r.repoName === repoName);
+        if (!match) return { value: [], branch: null };
+        return window.GHASShared.getCommitsForRepo(organization, match.projectName, repoName, pat);
     }
 
 
 </script>
 <script src="./GHASResult.cache.js"></script>
+<script src="./shared.js"></script>
 </body>
 </html>

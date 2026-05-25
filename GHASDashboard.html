@@ -94,6 +94,35 @@
 
         .hidden { display: none; }
 
+        /* Programmer attribution table */
+        .prog-section { margin-top: 8px; }
+        .prog-section-header {
+            display: flex; align-items: center; gap: 10px;
+            padding: 7px 12px; background: #f8f0ff;
+            border-radius: 6px 6px 0 0; border-bottom: 1px solid #e0d0f0;
+            font-size: 12px; font-weight: 600; color: #6c3483;
+        }
+        .prog-section-header button {
+            padding: 3px 10px; border-radius: 4px; border: none;
+            background: #8e44ad; color: #fff; cursor: pointer; font-size: 11px;
+        }
+        .prog-section-header button:disabled { background: #bbb; cursor: default; }
+        .prog-status { font-size: 11px; color: #8e44ad; margin-left: 6px; }
+        table.prog-table {
+            width: 100%; border-collapse: collapse;
+            background: #fff; border-radius: 0 0 6px 6px;
+            overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+        }
+        table.prog-table th {
+            background: #f3eaff; padding: 6px 10px;
+            text-align: left; font-size: 11px;
+            border-bottom: 2px solid #e0d0f0; white-space: nowrap;
+        }
+        table.prog-table td { padding: 5px 10px; border-bottom: 1px solid #f5f0ff; font-size: 12px; white-space: nowrap; }
+        table.prog-table tr:last-child td { border-bottom: none; }
+        table.prog-table tr:hover td { background: #fdf6ff; }
+        table.prog-table td.num { text-align: right; }
+
         /* Debug panel */
         #debugPanel { background: #1a1a2e; color: #e0e0e0; padding: 14px 20px; font-size: 12px; border-top: 2px solid #e74c3c; }
         #debugPanel summary { cursor: pointer; font-weight: bold; color: #f39c12; font-size: 13px; }
@@ -223,11 +252,86 @@
         return total > 0 ? (fixed / total * 100) : 0;
     }
 
+    // ── Committer attribution helpers ─────────────────────────────────────────
+
+    function findProjectForRepo(repoName) {
+        if (!window.__clusters) return repoName;
+        const san = sanitize(repoName);
+        for (const cl of window.__clusters) {
+            for (const p of cl.projects) {
+                const repos = Array.isArray(p.repos) ? p.repos : [p.repos || p.name];
+                if (repos.some(r => sanitize(r) === san || r === repoName)) return p.name;
+            }
+        }
+        return repoName;
+    }
+
+    async function getFixedFindingsFromCache(repos) {
+        const alertPat = /_apis\/alert\/repositories\/([^?\/]+)\/alerts/;
+        const repoSet = new Set(repos.map(r => sanitize(r)));
+        const result = {};
+        try {
+            const entries = await window.GHASResult.getAllCacheEntries();
+            for (const { key, data: entry } of entries) {
+                const urlPart = key.slice('ghas:'.length).split('|u:')[0];
+                const match = urlPart.match(alertPat);
+                if (!match) continue;
+                const repoName = decodeURIComponent(match[1]);
+                if (!repoSet.has(repoName)) continue;
+                if (!entry?.payload?.value) continue;
+                const fixed = entry.payload.value.filter(f =>
+                    String(f?.state||'').toLowerCase() === 'fixed' || !!f?.fixedDate
+                );
+                if (!result[repoName]) result[repoName] = [];
+                result[repoName].push(...fixed);
+            }
+        } catch(e) { console.warn('[Dashboard] getFixedFindingsFromCache', e); }
+        return result;
+    }
+
+    async function buildCommitterData(projects, pat, onProgress) {
+        const allRepos = projects.flatMap(p => p.repos);
+        const fixedByRepo = await getFixedFindingsFromCache(allRepos);
+        const merged = {}; // name -> { weeks:[{weekStart,label,c,h,m,l}×4], older:{label,c,h,m,l} }
+        let done = 0;
+        for (const r of allRepos) {
+            const key = sanitize(r);
+            const fixedFindings = fixedByRepo[key] || [];
+            if (fixedFindings.length > 0) {
+                onProgress?.(`Fetching commits: ${r} (${done + 1}/${allRepos.length})`);
+                const projectName = findProjectForRepo(r);
+                const { value: commits } = await window.GHASShared.getCommitsForRepo(organization, projectName, r, pat);
+                await randomDelay(300, 800);
+                const byCommitter = window.GHASShared.attributeFixedFindingsByWeek(fixedFindings, commits);
+                for (const [name, d] of Object.entries(byCommitter)) {
+                    if (!merged[name]) {
+                        merged[name] = {
+                            weeks: d.weeks.map(w => ({ weekStart: w.weekStart, label: w.label, critical:0, high:0, medium:0, low:0 })),
+                            older: { label: d.older.label, critical:0, high:0, medium:0, low:0 }
+                        };
+                    }
+                    d.weeks.forEach((w, i) => {
+                        merged[name].weeks[i].critical += w.critical;
+                        merged[name].weeks[i].high     += w.high;
+                        merged[name].weeks[i].medium   += w.medium;
+                        merged[name].weeks[i].low      += w.low;
+                    });
+                    merged[name].older.critical += d.older.critical;
+                    merged[name].older.high     += d.older.high;
+                    merged[name].older.medium   += d.older.medium;
+                    merged[name].older.low      += d.older.low;
+                }
+            }
+            done++;
+        }
+        return merged;
+    }
+
     // Build project list from GHASCluster.json project definitions (each has .name + .repos[])
     function aggregateProjects(projectDefs) {
         return projectDefs.map(p => ({
             projectName: p.name,
-            repos: Array.isArray(p.repos) ? p.repos : [p.name]
+            repos: Array.isArray(p.repos) ? p.repos : [p.repos || p.name]
         })).sort((a, b) => {
             const aActive = a.repos.reduce((s,r) => s + (liveData[sanitize(r)]?.totalActive||0), 0);
             const bActive = b.repos.reduce((s,r) => s + (liveData[sanitize(r)]?.totalActive||0), 0);
@@ -396,6 +500,128 @@
         sectionEl.appendChild(wrap);
     }
 
+    function renderCommitterSection(projects, bodyEl, clusterId) {
+        const wrap = document.createElement('div');
+        wrap.className = 'prog-section';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'prog-section-header';
+
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'prog-status';
+
+        const tableWrap = document.createElement('div');
+        tableWrap.style.overflowX = 'auto';
+
+        const btn = document.createElement('button');
+        btn.textContent = '👤 Load Attribution';
+        btn.onclick = async () => {
+            const pat = document.getElementById('patInput').value.trim();
+            if (!pat) { statusSpan.textContent = '⚠ Enter PAT first'; return; }
+            btn.disabled = true;
+            btn.textContent = '⏳ Loading…';
+            statusSpan.textContent = '';
+
+            const byCommitter = await buildCommitterData(projects, pat, msg => {
+                statusSpan.textContent = msg;
+            });
+            statusSpan.textContent = '';
+            tableWrap.innerHTML = '';
+
+            const entries = Object.entries(byCommitter).sort(([, a], [, b]) => {
+                const score = d => d.weeks.reduce((s, w) => s + w.critical*8+w.high*4+w.medium*2+w.low, 0)
+                                   + d.older.critical*8 + d.older.high*4 + d.older.medium*2 + d.older.low;
+                return score(b) - score(a);
+            });
+
+            if (entries.length === 0) {
+                tableWrap.innerHTML = '<div style="padding:10px;color:#888;font-size:12px;">No fixed findings with committer data found in cache.</div>';
+                btn.textContent = '↺ Reload Attribution';
+                btn.disabled = false;
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.className = 'prog-table';
+            table.innerHTML = `
+              <thead>
+                <tr>
+                  <th>Programmer</th>
+                  <th>Week</th>
+                  <th style="color:#c0392b;text-align:right">Crit</th>
+                  <th style="color:#e67e22;text-align:right">High</th>
+                  <th style="color:#2980b9;text-align:right">Med</th>
+                  <th style="color:#888;text-align:right">Low</th>
+                  <th style="text-align:right">Total</th>
+                </tr>
+              </thead>`;
+
+            const tbody = document.createElement('tbody');
+            const grandTotal = { critical:0, high:0, medium:0, low:0 };
+            const n = (v, color) => v > 0
+                ? `<td class="num" style="color:${color};font-weight:bold">${v}</td>`
+                : `<td class="num dim">-</td>`;
+
+            for (const [name, d] of entries) {
+                // Collect non-empty rows: weeks 0-3 + older
+                const rows = [];
+                for (const w of d.weeks) {
+                    const tot = w.critical + w.high + w.medium + w.low;
+                    if (tot > 0) rows.push({ label: w.label, ...w });
+                }
+                const oldTot = d.older.critical + d.older.high + d.older.medium + d.older.low;
+                if (oldTot > 0) rows.push({ label: d.older.label, ...d.older });
+                if (rows.length === 0) continue;
+
+                rows.forEach((row, idx) => {
+                    const tr = document.createElement('tr');
+                    // Subtle top border to separate programmers
+                    if (idx === 0) tr.style.borderTop = '2px solid #e0d0f0';
+                    const total = row.critical + row.high + row.medium + row.low;
+
+                    let nameCell = '';
+                    if (idx === 0) {
+                        // rowspan covers all rows for this programmer
+                        nameCell = `<td rowspan="${rows.length}" style="vertical-align:top;padding-top:8px;font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis" title="${name}">${name.length > 20 ? name.slice(0,20)+'…' : name}</td>`;
+                    }
+                    tr.innerHTML = `${nameCell}
+                      <td style="color:#555;font-size:11px">${row.label}</td>
+                      ${n(row.critical,'#c0392b')}${n(row.high,'#e67e22')}${n(row.medium,'#2980b9')}${n(row.low,'#888')}
+                      <td class="num"><b>${total}</b></td>`;
+                    tbody.appendChild(tr);
+
+                    grandTotal.critical += row.critical; grandTotal.high += row.high;
+                    grandTotal.medium   += row.medium;   grandTotal.low  += row.low;
+                });
+            }
+
+            // Grand total row
+            const grand = grandTotal.critical + grandTotal.high + grandTotal.medium + grandTotal.low;
+            const tfoot = document.createElement('tr');
+            tfoot.style.background = '#f3eaff';
+            tfoot.innerHTML = `
+              <td><b>TOTAL</b></td><td></td>
+              <td class="num c">${grandTotal.critical||'-'}</td>
+              <td class="num h">${grandTotal.high||'-'}</td>
+              <td class="num m">${grandTotal.medium||'-'}</td>
+              <td class="num l">${grandTotal.low||'-'}</td>
+              <td class="num"><b>${grand}</b></td>`;
+            tbody.appendChild(tfoot);
+            table.appendChild(tbody);
+            tableWrap.appendChild(table);
+
+            btn.textContent = '↺ Reload Attribution';
+            btn.disabled = false;
+        };
+
+        hdr.innerHTML = `<span>👤 Programmer Attribution</span>`;
+        hdr.appendChild(btn);
+        hdr.appendChild(statusSpan);
+        wrap.appendChild(hdr);
+        wrap.appendChild(tableWrap);
+        bodyEl.appendChild(wrap);
+    }
+
     function renderSections(clusters) {
         const container = document.getElementById('clusterSections');
         container.innerHTML = '';
@@ -422,6 +648,7 @@
             };
 
             renderProjectTable(cl._projects, body);
+            renderCommitterSection(cl._projects, body, cl.id);
             section.appendChild(header);
             section.appendChild(body);
             container.appendChild(section);
@@ -790,6 +1017,7 @@
     // init() is called AFTER cache.js loads (see script tag below)
 </script>
 <script src="./GHASResult.cache.js"></script>
+<script src="./shared.js"></script>
 <script>init();</script>
 </body>
 </html>
