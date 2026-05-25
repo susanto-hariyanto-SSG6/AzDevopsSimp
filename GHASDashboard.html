@@ -91,6 +91,8 @@
 
         .live-badge { font-size: 9px; background: #27ae60; color: #fff; padding: 1px 5px; border-radius: 8px; margin-left: 4px; vertical-align: middle; }
         .stale-badge { font-size: 9px; background: #aaa; color: #fff; padding: 1px 5px; border-radius: 8px; margin-left: 4px; vertical-align: middle; }
+        .repo-refresh-btn { font-size: 10px; padding: 1px 5px; margin-left: 5px; border: 1px solid #b0c4de; border-radius: 3px; background: #eaf3ff; color: #2471a3; cursor: pointer; vertical-align: middle; }
+        .repo-refresh-btn:disabled { color: #aaa; cursor: default; background: #f5f5f5; border-color: #ddd; }
 
         .hidden { display: none; }
 
@@ -208,6 +210,10 @@
         try {
             const entries = await window.GHASResult.getAllCacheEntries();
             const now = Date.now();
+
+            // Multiple IDB entries can exist per repo (different PAT hashes).
+            // Collect all valid entries per repo, then use only the FRESHEST one.
+            const freshestByRepo = {}; // repoName -> { ts, findings }
             for (const { key, data: entry } of entries) {
                 const urlPart = key.slice('ghas:'.length).split('|u:')[0];
                 const match = urlPart.match(alertPat);
@@ -216,14 +222,19 @@
                 if (!entry?.payload?.value) continue;
                 const expired = entry.exp ? now > entry.exp : (now - (entry.ts||0) > 2*24*60*60*1000);
                 if (expired) continue;
-                const findings = entry.payload.value;
+                const entryTs = entry.ts || 0;
+                if (!freshestByRepo[repoName] || entryTs > freshestByRepo[repoName].ts) {
+                    freshestByRepo[repoName] = { ts: entryTs, findings: entry.payload.value };
+                }
+            }
+
+            for (const [repoName, { findings }] of Object.entries(freshestByRepo)) {
                 const act = { critical:0, high:0, medium:0, low:0 };
                 const fix = { critical:0, high:0, medium:0, low:0 };
                 for (const f of findings) {
                     const sev = String(f?.severity||'').toLowerCase();
-                    const isFixed = isResolved(f);
-                    if (isFixed) { if (fix[sev]!==undefined) fix[sev]++; }
-                    else { if (act[sev]!==undefined) act[sev]++; }
+                    if (isResolved(f)) { if (fix[sev]!==undefined) fix[sev]++; }
+                    else               { if (act[sev]!==undefined) act[sev]++; }
                 }
                 liveData[repoName] = {
                     critical: act.critical, high: act.high, medium: act.medium, low: act.low,
@@ -272,9 +283,14 @@
     async function getFixedFindingsFromCache(repos) {
         const alertPat = /_apis\/alert\/repositories\/([^?\/]+)\/alerts/;
         const repoSet = new Set(repos.map(r => sanitize(r)));
-        const result = {};
+        // Use Maps keyed by alertId to deduplicate across multiple IDB entries for same repo
+        // (e.g. if repo was fetched with two different PATs → two IDB keys, same findings).
+        // Also track freshest ts per repo so we only keep the most recent entry's data.
+        const freshestTs = {};  // repoName -> highest ts seen
+        const resultMaps = {}; // repoName -> Map<alertId, finding>
         try {
             const entries = await window.GHASResult.getAllCacheEntries();
+            const now = Date.now();
             for (const { key, data: entry } of entries) {
                 const urlPart = key.slice('ghas:'.length).split('|u:')[0];
                 const match = urlPart.match(alertPat);
@@ -282,12 +298,25 @@
                 const repoName = decodeURIComponent(match[1]);
                 if (!repoSet.has(repoName)) continue;
                 if (!entry?.payload?.value) continue;
-                const fixed = entry.payload.value.filter(isResolved);
-                if (!result[repoName]) result[repoName] = [];
-                result[repoName].push(...fixed);
+                const expired = entry.exp ? now > entry.exp : (now - (entry.ts||0) > 2*24*60*60*1000);
+                if (expired) continue;
+                const entryTs = entry.ts || 0;
+                // If we already have a fresher entry for this repo, skip this one
+                if (freshestTs[repoName] !== undefined && entryTs < freshestTs[repoName]) continue;
+                if (entryTs > (freshestTs[repoName] ?? -1)) {
+                    // Fresher entry: reset the map
+                    freshestTs[repoName] = entryTs;
+                    resultMaps[repoName] = new Map();
+                }
+                for (const f of entry.payload.value.filter(isResolved)) {
+                    const id = String(f?.alertId ?? '');
+                    if (id) resultMaps[repoName].set(id, f);
+                }
             }
         } catch(e) { console.warn('[Dashboard] getFixedFindingsFromCache', e); }
-        return result;
+        return Object.fromEntries(
+            Object.entries(resultMaps).map(([k, m]) => [k, [...m.values()]])
+        );
     }
 
     async function buildCommitterData(projects, pat, onProgress) {
@@ -390,14 +419,13 @@
         }
     }
 
-    function renderProjectTable(projects, sectionEl) {
+    function renderProjectTable(projects, sectionEl, clusterId) {
         const wrap = document.createElement('div');
         wrap.className = 'project-table-wrap';
 
         const table = document.createElement('table');
         table.className = 'ptable';
 
-        // Two-row grouped header: Active (C|H|M|L|#) | Fixed (C|H|M|L|#) | Fix%
         table.innerHTML = `
         <thead>
           <tr>
@@ -422,80 +450,166 @@
         </thead>`;
 
         const tbody = document.createElement('tbody');
-        const tot = { ac:0, ah:0, am:0, al:0, atotal:0, fc:0, fh:0, fm:0, fl:0, ftotal:0 };
 
+        // ── Totals row (appended last, but referenced in closures below) ──────
+        const tfoot = document.createElement('tr');
+        tfoot.style.background = '#f0f4f8';
+
+        function computeTotals() {
+            const t = { ac:0,ah:0,am:0,al:0,atotal:0,fc:0,fh:0,fm:0,fl:0,ftotal:0 };
+            for (const p of projects) {
+                for (const r of p.repos) {
+                    const ld = liveData[sanitize(r)];
+                    if (!ld) continue;
+                    t.ac += ld.critical||0;       t.ah += ld.high||0;
+                    t.am += ld.medium||0;         t.al += ld.low||0;
+                    t.atotal += ld.totalActive||0;
+                    t.fc += ld.fixedCritical||0;  t.fh += ld.fixedHigh||0;
+                    t.fm += ld.fixedMedium||0;    t.fl += ld.fixedLow||0;
+                    t.ftotal += ld.totalFixed||0;
+                }
+            }
+            return t;
+        }
+
+        function renderTotalsRow() {
+            const t = computeTotals();
+            const pct = fixRate(t.atotal, t.ftotal);
+            tfoot.innerHTML = `
+                <td><b>TOTAL</b></td><td></td>
+                <td class="num c" style="background:#fdecea">${t.ac||'-'}</td>
+                <td class="num h" style="background:#fdecea">${t.ah||'-'}</td>
+                <td class="num m" style="background:#fdecea">${t.am||'-'}</td>
+                <td class="num l" style="background:#fdecea">${t.al||'-'}</td>
+                <td class="num" style="background:#fdecea"><b>${t.atotal.toLocaleString()}</b></td>
+                <td class="num c" style="background:#eafaf1">${t.fc||'-'}</td>
+                <td class="num h" style="background:#eafaf1">${t.fh||'-'}</td>
+                <td class="num m" style="background:#eafaf1">${t.fm||'-'}</td>
+                <td class="num l" style="background:#eafaf1">${t.fl||'-'}</td>
+                <td class="num" style="background:#eafaf1"><b>${t.ftotal.toLocaleString()}</b></td>
+                <td class="num">${ratePill(pct)}</td>`;
+        }
+
+        // ── Per-repo row filler (called on init and after each refresh) ───────
+        function fillRepoRow(tr, r, projectName) {
+            const key = sanitize(r);
+            const ld  = liveData[key];
+            tr.innerHTML = '';
+
+            // Cell 0: repo name + source badge + refresh button
+            const td0 = document.createElement('td');
+            td0.style.whiteSpace = 'nowrap';
+            td0.appendChild(document.createTextNode(r + ' '));
+            const badge = document.createElement('span');
+            if (!ld) {
+                badge.className = 'stale-badge'; badge.title = 'No data'; badge.textContent = '⚠';
+            } else if (ld.fromCache) {
+                badge.className = 'stale-badge'; badge.textContent = '📦';
+            } else {
+                badge.className = 'live-badge'; badge.textContent = '🌐';
+            }
+            td0.appendChild(badge);
+
+            const btn = document.createElement('button');
+            btn.className = 'repo-refresh-btn';
+            btn.title = `Refresh ${r} from API`;
+            btn.textContent = '↺';
+            btn.onclick = async () => {
+                const pat = document.getElementById('patInput').value.trim();
+                if (!pat) {
+                    btn.textContent = '⚠'; btn.style.color = '#e74c3c';
+                    setTimeout(() => { btn.textContent = '↺'; btn.style.color = ''; }, 2500);
+                    return;
+                }
+                btn.disabled = true; btn.textContent = '⏳';
+                await window.GHASResult.clearCacheByPattern(key);
+                try {
+                    const result = await getGhasResult(GHAS_PROJECT_ID, pat, key);
+                    const findings = result.value || [];
+                    const act = {critical:0,high:0,medium:0,low:0};
+                    const fix = {critical:0,high:0,medium:0,low:0};
+                    for (const f of findings) {
+                        const s = String(f?.severity||'').toLowerCase();
+                        if (isResolved(f)) { if (fix[s]!==undefined) fix[s]++; }
+                        else               { if (act[s]!==undefined) act[s]++; }
+                    }
+                    liveData[key] = {
+                        critical: act.critical, high: act.high, medium: act.medium, low: act.low,
+                        totalActive: act.critical+act.high+act.medium+act.low,
+                        fixedCritical: fix.critical, fixedHigh: fix.high, fixedMedium: fix.medium, fixedLow: fix.low,
+                        totalFixed: fix.critical+fix.high+fix.medium+fix.low,
+                        fromCache: false
+                    };
+                    fillRepoRow(tr, r, projectName);   // re-render this row
+                    renderTotalsRow();                  // update table totals
+                    // update cluster _totals and re-render cards
+                    const cl = window.__clusters?.find(c => String(c.id) === String(clusterId));
+                    if (cl) cl._totals = clusterTotals(cl._projects);
+                    renderClusterCards(window.__clusters);
+                } catch(e) {
+                    console.warn('[Dashboard] refresh failed:', r, e);
+                    btn.disabled = false; btn.textContent = '✗'; btn.style.color = '#e74c3c';
+                    setTimeout(() => { btn.textContent = '↺'; btn.style.color = ''; btn.disabled = false; }, 3000);
+                }
+            };
+            td0.appendChild(btn);
+            tr.appendChild(td0);
+
+            // Cell 1: project name
+            const td1 = document.createElement('td');
+            td1.className = 'dim'; td1.style.fontSize = '11px';
+            td1.textContent = projectName;
+            tr.appendChild(td1);
+
+            // Data cells helper
+            const n = v => v > 0 ? String(v) : '-';
+            const numTd = (val, cls, bg) => {
+                const td = document.createElement('td');
+                td.className = `num ${val > 0 ? cls : 'dim'}`;
+                td.style.background = bg;
+                td.textContent = n(val);
+                return td;
+            };
+
+            if (ld) {
+                tr.appendChild(numTd(ld.critical,      'c', '#fdecea'));
+                tr.appendChild(numTd(ld.high,          'h', '#fdecea'));
+                tr.appendChild(numTd(ld.medium,        'm', '#fdecea'));
+                tr.appendChild(numTd(ld.low,           'l', '#fdecea'));
+                const tdAt = document.createElement('td');
+                tdAt.className = 'num'; tdAt.style.background = '#fdecea';
+                tdAt.innerHTML = `<b>${ld.totalActive.toLocaleString()}</b>`;
+                tr.appendChild(tdAt);
+                tr.appendChild(numTd(ld.fixedCritical||0, 'c', '#eafaf1'));
+                tr.appendChild(numTd(ld.fixedHigh||0,     'h', '#eafaf1'));
+                tr.appendChild(numTd(ld.fixedMedium||0,   'm', '#eafaf1'));
+                tr.appendChild(numTd(ld.fixedLow||0,      'l', '#eafaf1'));
+                const tdFt = document.createElement('td');
+                tdFt.className = 'num'; tdFt.style.background = '#eafaf1';
+                tdFt.innerHTML = `<b>${ld.totalFixed.toLocaleString()}</b>`;
+                tr.appendChild(tdFt);
+                const tdPct = document.createElement('td');
+                tdPct.className = 'num';
+                tdPct.innerHTML = ratePill(fixRate(ld.totalActive, ld.totalFixed));
+                tr.appendChild(tdPct);
+            } else {
+                for (let i = 0; i < 5; i++) { const td = document.createElement('td'); td.className='num dim'; td.style.background='#fdecea'; td.textContent='-'; tr.appendChild(td); }
+                for (let i = 0; i < 5; i++) { const td = document.createElement('td'); td.className='num dim'; td.style.background='#eafaf1'; td.textContent='-'; tr.appendChild(td); }
+                const td = document.createElement('td'); td.className='num dim'; td.textContent='-'; tr.appendChild(td);
+            }
+        }
+
+        // ── Build rows ────────────────────────────────────────────────────────
         for (const p of projects) {
             for (const r of p.repos) {
-                const key = sanitize(r);
-                const ld = liveData[key];
                 const tr = document.createElement('tr');
-
-                if (ld) {
-                    const pct = fixRate(ld.totalActive, ld.totalFixed);
-                    const src = ld.fromCache
-                        ? '<span class="stale-badge">📦</span>'
-                        : '<span class="live-badge">🌐</span>';
-                    const n = v => v > 0 ? v : '<span class="dim">-</span>';
-                    tr.innerHTML = `
-                        <td>${r} ${src}</td>
-                        <td class="dim" style="font-size:11px">${p.projectName}</td>
-                        <td class="num ${ld.critical > 0         ? 'c' : 'dim'}" style="background:#fdecea">${n(ld.critical)}</td>
-                        <td class="num ${ld.high     > 0         ? 'h' : 'dim'}" style="background:#fdecea">${n(ld.high)}</td>
-                        <td class="num ${ld.medium   > 0         ? 'm' : 'dim'}" style="background:#fdecea">${n(ld.medium)}</td>
-                        <td class="num ${ld.low      > 0         ? 'l' : 'dim'}" style="background:#fdecea">${n(ld.low)}</td>
-                        <td class="num" style="background:#fdecea"><b>${ld.totalActive.toLocaleString()}</b></td>
-                        <td class="num ${ld.fixedCritical > 0    ? 'c' : 'dim'}" style="background:#eafaf1">${n(ld.fixedCritical||0)}</td>
-                        <td class="num ${ld.fixedHigh     > 0    ? 'h' : 'dim'}" style="background:#eafaf1">${n(ld.fixedHigh||0)}</td>
-                        <td class="num ${ld.fixedMedium   > 0    ? 'm' : 'dim'}" style="background:#eafaf1">${n(ld.fixedMedium||0)}</td>
-                        <td class="num ${ld.fixedLow      > 0    ? 'l' : 'dim'}" style="background:#eafaf1">${n(ld.fixedLow||0)}</td>
-                        <td class="num" style="background:#eafaf1"><b>${ld.totalFixed.toLocaleString()}</b></td>
-                        <td class="num">${ratePill(pct)}</td>`;
-                    tot.ac += ld.critical       || 0; tot.ah += ld.high         || 0;
-                    tot.am += ld.medium         || 0; tot.al += ld.low          || 0;
-                    tot.atotal += ld.totalActive || 0;
-                    tot.fc += ld.fixedCritical  || 0; tot.fh += ld.fixedHigh    || 0;
-                    tot.fm += ld.fixedMedium    || 0; tot.fl += ld.fixedLow     || 0;
-                    tot.ftotal += ld.totalFixed  || 0;
-                } else {
-                    tr.innerHTML = `
-                        <td>${r} <span class="stale-badge" title="No data">⚠</span></td>
-                        <td class="dim" style="font-size:11px">${p.projectName}</td>
-                        <td class="num dim" style="background:#fdecea">-</td>
-                        <td class="num dim" style="background:#fdecea">-</td>
-                        <td class="num dim" style="background:#fdecea">-</td>
-                        <td class="num dim" style="background:#fdecea">-</td>
-                        <td class="num dim" style="background:#fdecea">-</td>
-                        <td class="num dim" style="background:#eafaf1">-</td>
-                        <td class="num dim" style="background:#eafaf1">-</td>
-                        <td class="num dim" style="background:#eafaf1">-</td>
-                        <td class="num dim" style="background:#eafaf1">-</td>
-                        <td class="num dim" style="background:#eafaf1">-</td>
-                        <td class="num dim">-</td>`;
-                }
+                fillRepoRow(tr, r, p.projectName);
                 tbody.appendChild(tr);
             }
         }
 
-        // Totals row
-        const tpct = fixRate(tot.atotal, tot.ftotal);
-        const tfooter = document.createElement('tr');
-        tfooter.style.background = '#f0f4f8';
-        tfooter.innerHTML = `
-            <td><b>TOTAL</b></td>
-            <td></td>
-            <td class="num c" style="background:#fdecea">${tot.ac||'-'}</td>
-            <td class="num h" style="background:#fdecea">${tot.ah||'-'}</td>
-            <td class="num m" style="background:#fdecea">${tot.am||'-'}</td>
-            <td class="num l" style="background:#fdecea">${tot.al||'-'}</td>
-            <td class="num" style="background:#fdecea"><b>${tot.atotal.toLocaleString()}</b></td>
-            <td class="num c" style="background:#eafaf1">${tot.fc||'-'}</td>
-            <td class="num h" style="background:#eafaf1">${tot.fh||'-'}</td>
-            <td class="num m" style="background:#eafaf1">${tot.fm||'-'}</td>
-            <td class="num l" style="background:#eafaf1">${tot.fl||'-'}</td>
-            <td class="num" style="background:#eafaf1"><b>${tot.ftotal.toLocaleString()}</b></td>
-            <td class="num">${ratePill(tpct)}</td>`;
-        tbody.appendChild(tfooter);
-
+        renderTotalsRow();
+        tbody.appendChild(tfoot);
         table.appendChild(tbody);
         wrap.appendChild(table);
         sectionEl.appendChild(wrap);
@@ -648,7 +762,7 @@
                 header.querySelector('.section-toggle').textContent = hidden ? '▶' : '▼';
             };
 
-            renderProjectTable(cl._projects, body);
+            renderProjectTable(cl._projects, body, cl.id);
             renderCommitterSection(cl._projects, body, cl.id);
             section.appendChild(header);
             section.appendChild(body);
