@@ -7,7 +7,7 @@
   const DB_NAME = 'GHASCache';
   const STORE   = 'entries';
   const KEY_PFX = 'ghas:';
-  const TTL_MS  = 2 * 24 * 60 * 60 * 1000;  // 2 days
+  const TTL_MS  = 6 * 24 * 60 * 60 * 1000;  // 6 days
   const JITTER  = 0.2;                        // ±20%
 
   // ── IndexedDB helpers ──────────────────────────────────────────────────────
