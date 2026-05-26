@@ -140,3 +140,23 @@ Key endpoints:
 const organization    = 'itbinus';                               // GHASDashboard, shared.js
 const GHAS_PROJECT_ID = '1f663eb2-dd63-4b51-b000-f0949e3c8ab0'; // GHASDashboard
 ```
+
+---
+
+## Known Bugs Fixed
+
+### `GHASResult.html` — repo link used project GUID instead of project name
+
+`renderPipelineLink()` was called with `repo.ghasid` (a GUID) as `projectId`, and the link was built as:
+```js
+`https://dev.azure.com/itbinus/${projectId}/_build?view=folders`
+```
+This produced broken URLs like `.../0779418d-fcf9-4ef1-d642-08de8e82072f/_build`. Fixed to:
+```js
+repoLink.href = `https://dev.azure.com/itbinus/${repo.projectName || projectId}/_build?view=folders`;
+```
+`repo.projectName` is always populated from `allrepojson`. The `|| projectId` fallback is kept for safety.
+
+### Cache TTL constant mismatch (tests only)
+
+`tests/cache.test.js` had `TTL_MS = 2 days` but `GHASResult.cache.js` uses `TTL_MS = 6 days`. The TTL-expiry test was silently passing with a wrong expectation. Fixed: test constant aligned to 6 days.

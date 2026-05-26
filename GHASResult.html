@@ -407,7 +407,7 @@
         valueCell.style.width = '400px';
 
         const repoLink = document.createElement('a');
-        repoLink.href = `https://dev.azure.com/itbinus/${projectId}/_build?view=folders`;
+        repoLink.href = `https://dev.azure.com/itbinus/${repo.projectName || projectId}/_build?view=folders`;
         repoLink.target = "_blank";
         repoLink.textContent = repo.repoName;
         valueCell.appendChild(repoLink);
