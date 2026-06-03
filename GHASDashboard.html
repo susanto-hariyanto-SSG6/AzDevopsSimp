@@ -175,14 +175,22 @@
     const isResolved = f => { const s = String(f?.state||'').toLowerCase(); return s === 'fixed' || s === 'dismissed'; };
 
     // Base fetch functions — must be registered on window.GHASResult BEFORE cache.js loads
+    // These are the fallback implementations. cache.js will wrap them with IndexedDB caching.
+    // IMPORTANT: Keep implementations identical to GHASResult.html so both pages use same cache
     async function fetchData(url, pat) {
-        const response = await fetch(url, { headers: { 'Authorization': 'Basic ' + btoa(':' + pat) } });
+        const response = await fetch(url, { 
+            method: 'GET',
+            headers: { 'Authorization': 'Basic ' + btoa(':' + pat) } 
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json();
     }
 
     async function fetchDataWithHeaders(url, pat) {
-        const response = await fetch(url, { headers: { 'Authorization': 'Basic ' + btoa(':' + pat) } });
+        const response = await fetch(url, { 
+            method: 'GET',
+            headers: { 'Authorization': 'Basic ' + btoa(':' + pat) } 
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         return { data, headers: response.headers };
@@ -191,7 +199,6 @@
     window.GHASResult = window.GHASResult || {};
     window.GHASResult.fetchData = fetchData;
     window.GHASResult.fetchDataWithHeaders = fetchDataWithHeaders;
-
 
     const sevConfig = [
         { key: 'critical', label: 'C', css: 'c', risk: 'criticalRisk' },
