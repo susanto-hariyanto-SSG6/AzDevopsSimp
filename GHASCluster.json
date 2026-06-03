@@ -150,7 +150,7 @@
           "name": "SSG5-C1-LegalDocumentRequest",
           "repos": [
             "SSG5-C1-LegalDocumentRequestBE",
-            "SSG5-C1-LegalDocumentRequestFE",1
+            "SSG5-C1-LegalDocumentRequestFE",
             "SSG5-C1-LegalDR-API",
             "SSG5-C1-LegalDR-Agent"
           ]
