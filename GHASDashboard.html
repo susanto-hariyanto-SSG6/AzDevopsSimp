@@ -1006,15 +1006,23 @@
         }));
         render(window.__clusters);
         
-        // Enrich with programmer attribution from commits
-        console.log('[Dashboard] Starting attribution enrichment...');
+        // Enrich with programmer attribution from commits for ALL clusters
+        console.log('[Dashboard] Starting attribution enrichment for all clusters...');
         const projects = (window.__clusters || []).flatMap(cl => cl._projects);
         try {
             await buildCommitterData(projects, pat, msg => {
                 console.log('[Dashboard] Attribution:', msg);
             });
             console.log('[Dashboard] ✓ Attribution enrichment complete');
-            setStatus(`✅ Live data loaded + Attribution enriched`, '#8f8');
+            
+            // Re-render everything after attribution is enriched
+            // This will show all cluster cards + attribution tables + fixing activity
+            await autoLoadAttribution(window.__clusters);
+            
+            // Re-render the fixing activity chart with fresh data
+            await loadFixingActivityFragment();
+            
+            setStatus(`✅ Live data + Attribution loaded + Chart refreshed`, '#8f8');
         } catch (e) {
             console.warn('[Dashboard] Attribution enrichment failed:', e.message);
             setStatus(`✅ Live data loaded (attribution failed)`, '#f39c12');
