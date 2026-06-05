@@ -500,7 +500,7 @@
                         // getGhasResult fetches with ?api-version=7.2-preview.1&$top=100 so the stored
                         // key includes those params. alertUrl has none, so we must add them explicitly
                         // before hashing — otherwise idbGet() returns null and the write is silently lost.
-                        const cacheParams = new URLSearchParams({'api-version': '7.2-preview.1', '$top': String(top)});
+                        const cacheParams = new URLSearchParams({'api-version': '7.2-preview.1', '$top': '100'});
                         const canonicalUrl = new URL(`${alertUrl}?${cacheParams.toString()}`);
                         canonicalUrl.searchParams.delete('continuationToken');
                         const cacheKey = 'ghas:' + canonicalUrl.toString() + '|u:' + hash(String(currentPat || ''));
@@ -529,7 +529,10 @@
                     statusSpan.textContent = '🔄 Reload';
                     statusSpan.style.cursor = 'pointer';
                     statusSpan.onclick = async () => {
-                        if (window.GHASResult.clearCache) await window.GHASResult.clearCache();
+                        // Clear only this repo's cache, not all repos
+                        if (window.GHASResult.clearCacheByPattern) {
+                            await window.GHASResult.clearCacheByPattern(sanitizedRepoName);
+                        }
                         findingsCell.dataset.loaded = '0';
                         loadFindingsIntoCell(findingsCell);
                     };

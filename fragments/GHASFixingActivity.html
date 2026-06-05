@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GHAS Fixing Activity - Fragment Test</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f4f6f8;
+            color: #333;
+        }
+        header {
+            background: #1e2a38;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        header h1 { margin: 0; font-size: 1.2rem; }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #27ae60;
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .controls button:hover { background: #229954; }
+        .controls button:disabled { background: #bdc3c7; cursor: default; }
+        .controls input { padding: 8px; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 13px; }
+        .section { margin-bottom: 30px; }
+        .section h2 { font-size: 1rem; color: #1e2a38; margin-bottom: 10px; }
+        #activityContainer { min-height: 200px; }
+        .status-message {
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        .status-message.success { background: #eafaf1; color: #27ae60; border: 1px solid #27ae60; }
+        .status-message.error { background: #fdecea; color: #c0392b; border: 1px solid #c0392b; }
+        .status-message.info { background: #ebf5fb; color: #2980b9; border: 1px solid #2980b9; }
+        .debug-info {
+            background: #2d2d44;
+            color: #fff;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+    <link rel="stylesheet" href="./fixing-activity.css">
+</head>
+<body>
+
+<header>
+    <h1>🔧 GHAS Fixing Activity - Fragment Test</h1>
+</header>
+
+<div class="controls">
+    <button onclick="testLoadFromCache()">Load from Cache</button>
+    <button onclick="testWithMockData()">Test with Mock Data</button>
+    <button onclick="testClearAndReload()">Clear & Reload</button>
+    <input type="number" id="maxDaysInput" placeholder="Max days" value="30" min="1" max="365">
+    <button onclick="updateWithCustomDays()">Apply</button>
+    <button onclick="clearDebug()">Clear Debug</button>
+</div>
+
+<div class="section">
+    <h2>Status</h2>
+    <div id="statusContainer"></div>
+</div>
+
+<div class="section">
+    <h2>Activity View</h2>
+    <div id="activityContainer"></div>
+</div>
+
+<div class="section">
+    <h2>Debug Info</h2>
+    <div id="debugContainer" class="debug-info">Ready for testing...</div>
+</div>
+
+<!-- Base fetch functions (must load BEFORE cache.js) -->
+<script>
+    window.GHASResult = window.GHASResult || {};
+    
+    // Base fetch function (fallback)
+    window.GHASResult.fetchData = async (url, pat) => {
+        try {
+            const auth = 'Basic ' + btoa(':' + pat);
+            const response = await fetch(url, {
+                headers: { 'Authorization': auth }
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } catch (e) {
+            console.error('[fetchData] Error:', e);
+            throw e;
+        }
+    };
+    
+    // Base fetch with headers (fallback)
+    window.GHASResult.fetchDataWithHeaders = async (url, pat) => {
+        try {
+            const auth = 'Basic ' + btoa(':' + pat);
+            const response = await fetch(url, {
+                headers: { 'Authorization': auth }
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const continuationToken = response.headers.get('x-ms-continuationtoken');
+            return { data, continuationToken };
+        } catch (e) {
+            console.error('[fetchDataWithHeaders] Error:', e);
+            throw e;
+        }
+    };
+</script>
+
+<!-- Load the universal cache layer (wraps the base functions above) -->
+<script src="../GHASResult.cache.js"></script>
+
+<!-- Mock data generator and test utilities -->
+<script>
+    let mockCacheEntries = [];
+    
+    // Generate mock cache entries for testing
+    function generateMockCacheData() {
+        const now = new Date();
+        const mockData = [];
+        const programmers = ['Alice', 'Bob', 'Charlie', 'Diana'];
+        // Use real repo names from cluster config for testing
+        const testRepos = [
+          'SSG1-C3-CBTBackEnd',
+          'SSG1-C3-Honor Binus Center',
+          'SSG5-C1-BSQWebAPI'
+        ];
+        
+        for (let i = 0; i < testRepos.length; i++) {
+            const findings = [];
+            const repoName = testRepos[i];
+            
+            // Generate 5 days of data per repo
+            for (let dayOffset = 0; dayOffset < 5; dayOffset++) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - dayOffset);
+                const dateStr = date.toISOString().split('T')[0];
+                
+                const numFindings = Math.floor(Math.random() * 5) + 2;
+                
+                for (let j = 0; j < numFindings; j++) {
+                    const severities = ['critical', 'high', 'medium', 'low'];
+                    const prog = programmers[Math.floor(Math.random() * programmers.length)];
+                    
+                    findings.push({
+                        alertId: `alert-${i}-${dayOffset}-${j}`,
+                        title: `Security Finding ${i}-${dayOffset}-${j}`,
+                        severity: severities[Math.floor(Math.random() * severities.length)],
+                        state: 'fixed',
+                        alertType: 'code_scanning',
+                        fixedDate: dateStr + `T${10 + Math.floor(Math.random() * 14)}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}:00Z`,
+                        lastSeenDate: dateStr + 'T00:00:00Z',
+                        attribution: { name: prog }
+                    });
+                }
+            }
+            
+            mockData.push({
+                key: `ghas:https://advsec.dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/alert/repositories/${repoName}/alerts?api-version=7.2-preview.1&%24top=100|u:hash${i}`,
+                data: {
+                    ts: Date.now(),
+                    exp: Date.now() + 2 * 24 * 60 * 60 * 1000,
+                    payload: { value: findings }
+                }
+            });
+        }
+        
+        return mockData;
+    }
+    
+    // Utility functions
+    function status(msg, type = 'info') {
+        const container = document.getElementById('statusContainer');
+        const el = document.createElement('div');
+        el.className = `status-message ${type}`;
+        el.textContent = msg;
+        container.innerHTML = '';
+        container.appendChild(el);
+    }
+    
+    function debug(msg) {
+        const container = document.getElementById('debugContainer');
+        const timestamp = new Date().toLocaleTimeString();
+        container.textContent += `\n[${timestamp}] ${msg}`;
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function clearDebug() {
+        document.getElementById('debugContainer').textContent = '';
+    }
+    
+    // Get all cache entries (priority: real cache → mock data)
+    async function getCacheEntries() {
+        try {
+            if (!window.GHASResult?.getAllCacheEntries) {
+                throw new Error('Cache layer not loaded');
+            }
+            
+            const entries = await window.GHASResult.getAllCacheEntries();
+            debug(`[Cache] Got ${entries.length} real cache entries from IndexedDB`);
+            
+            if (entries && entries.length > 0) {
+                return entries;
+            }
+            
+            debug('[Cache] Real cache is empty, using mock data');
+            return mockCacheEntries;
+        } catch (e) {
+            debug(`[Cache] Error reading real cache: ${e.message}, using mock data`);
+            return mockCacheEntries;
+        }
+    }
+    
+    // Test functions
+    async function testLoadFromCache() {
+        try {
+            status('Loading from IndexedDB cache...', 'info');
+            debug('[TEST] Attempting to load real data from IndexedDB');
+            
+            const entries = await window.GHASResult.getAllCacheEntries();
+            debug(`[TEST] Got ${entries.length} entries from IndexedDB`);
+            
+            if (!entries || entries.length === 0) {
+                status('IndexedDB cache is empty. Open GHASDashboard.html first to populate cache, or use mock data.', 'error');
+                return;
+            }
+            
+            mockCacheEntries = entries;
+            await renderActivity();
+            status(`Loaded ${entries.length} entries from IndexedDB cache successfully`, 'success');
+        } catch (e) {
+            status(`Error: ${e.message}`, 'error');
+            debug(`[ERROR] ${e.message}`);
+        }
+    }
+    
+    async function testWithMockData() {
+        try {
+            status('Generating mock data...', 'info');
+            mockCacheEntries = generateMockCacheData();
+            debug(`[TEST] Generated ${mockCacheEntries.length} mock cache entries`);
+            
+            await renderActivity();
+            status('Mock data loaded successfully', 'success');
+        } catch (e) {
+            status(`Error: ${e.message}`, 'error');
+            debug(`[ERROR] ${e.message}`);
+        }
+    }
+    
+    async function testClearAndReload() {
+        try {
+            status('Clearing and reloading...', 'info');
+            mockCacheEntries = [];
+            document.getElementById('activityContainer').innerHTML = '';
+            debug('[TEST] Cleared all data');
+            
+            setTimeout(() => {
+                testWithMockData();
+            }, 500);
+        } catch (e) {
+            status(`Error: ${e.message}`, 'error');
+            debug(`[ERROR] ${e.message}`);
+        }
+    }
+    
+    async function updateWithCustomDays() {
+        try {
+            const maxDays = parseInt(document.getElementById('maxDaysInput').value, 10);
+            if (isNaN(maxDays) || maxDays < 1) {
+                throw new Error('Invalid days value');
+            }
+            
+            status(`Rendering with max ${maxDays} days...`, 'info');
+            await renderActivity({ maxDays });
+            status(`Updated with ${maxDays} days`, 'success');
+        } catch (e) {
+            status(`Error: ${e.message}`, 'error');
+            debug(`[ERROR] ${e.message}`);
+        }
+    }
+    
+    async function renderActivity(options = {}) {
+        debug(`[Render] Starting render with options: ${JSON.stringify(options)}`);
+        
+        if (!window.FixingActivity?.renderDailyActivity) {
+            throw new Error('FixingActivity component not loaded');
+        }
+        
+        const container = document.getElementById('activityContainer');
+        await window.FixingActivity.renderDailyActivity(container, options);
+        debug('[Render] Completed successfully');
+    }
+</script>
+
+    <!-- Chart library for line charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+<!-- Load the fixing activity component -->
+<script src="./fixing-activity.js"></script>
+
+<script>
+    // On page load, try real cache first, then mock data as fallback
+    window.addEventListener('load', async () => {
+        debug('[INIT] Page loaded, checking for real cache data...');
+        
+        try {
+            const entries = await window.GHASResult.getAllCacheEntries();
+            
+            if (entries && entries.length > 0) {
+                debug(`[INIT] Found ${entries.length} entries in IndexedDB cache`);
+                mockCacheEntries = entries;
+                await renderActivity();
+                status(`Loaded ${entries.length} entries from IndexedDB cache`, 'success');
+            } else {
+                debug('[INIT] IndexedDB cache is empty, loading mock data...');
+                mockCacheEntries = generateMockCacheData();
+                await renderActivity();
+                status(`IndexedDB cache empty → showing ${mockCacheEntries.length} mock entries. Open GHASDashboard.html to populate cache.`, 'info');
+            }
+        } catch (e) {
+            debug(`[INIT] Error accessing cache: ${e.message}, using mock data`);
+            mockCacheEntries = generateMockCacheData();
+            await renderActivity();
+            status(`Cache error → showing mock data (${mockCacheEntries.length} entries). Open GHASDashboard.html to populate real cache.`, 'info');
+        }
+    });
+</script>
+
+</body>
+</html>

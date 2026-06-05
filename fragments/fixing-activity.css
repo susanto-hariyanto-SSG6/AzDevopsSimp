@@ -1,0 +1,332 @@
+/**
+ * fragments/fixing-activity.css
+ * Styling for the daily fixing activity component
+ */
+
+.fixing-activity {
+  margin: 16px 0;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.fixing-activity h3 {
+  margin: 0 0 16px 0;
+  font-size: 1rem;
+  color: #1e2a38;
+  font-weight: 600;
+}
+
+/* Chart container styling */
+.cluster-section {
+  margin-bottom: 40px;
+  page-break-inside: avoid;
+}
+
+.combined-chart-container {
+  background: #ffffff;
+  border: 1px solid #e0e6ed;
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.combined-chart-placeholder {
+  width: 100%;
+  min-height: 420px;
+  background: #f9fbfc;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.daily-chart-container {
+  background: #ffffff;
+  border: 1px solid #e0e6ed;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.daily-chart-container h4 {
+  margin: 0 0 12px 0;
+  font-size: 0.95rem;
+  color: #1e2a38;
+  font-weight: 600;
+}
+
+/* Pivot table styling */
+.pivot-table {
+  margin-bottom: 24px;
+  page-break-inside: avoid;
+}
+
+.pivot-table-data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  border: 1px solid #dce3ea;
+}
+
+.pivot-table-data thead {
+  background: #f0f4f8;
+  border-bottom: 2px solid #dce3ea;
+}
+
+.pivot-table-data th {
+  padding: 10px 12px;
+  text-align: center;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  border-right: 1px solid #dce3ea;
+}
+
+.pivot-table-data th:first-child {
+  text-align: left;
+  border-right: 2px solid #dce3ea;
+}
+
+.pivot-table-data th:nth-child(2) {
+  border-right: 2px solid #dce3ea;
+}
+
+.pivot-table-data th.prog-col {
+  background: #f0f4f8;
+  min-width: 120px;
+}
+
+.pivot-table-data tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s;
+}
+
+.pivot-table-data tbody tr:hover {
+  background-color: #f9fbff;
+}
+
+.pivot-table-data tbody tr:last-child {
+  border-bottom: none;
+}
+
+.pivot-table-data td {
+  padding: 10px 12px;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 1px solid #e8ebf0;
+}
+
+.pivot-table-data td.date {
+  text-align: left;
+  font-weight: 500;
+  color: #1e2a38;
+  min-width: 120px;
+  border-right: 2px solid #dce3ea;
+}
+
+.pivot-table-data td.total {
+  font-weight: 600;
+  background: #f5f5f5;
+  border-right: 2px solid #dce3ea;
+  width: 60px;
+}
+
+.pivot-table-data td.prog-severity {
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  min-width: 110px;
+  background: #fafbfc;
+}
+
+.sev-c { color: #c0392b; font-weight: 600; }
+.sev-h { color: #e67e22; font-weight: 600; }
+.sev-m { color: #2980b9; font-weight: 600; }
+.sev-l { color: #888; font-weight: 500; }
+
+/* Legacy activity table styling (kept for backward compatibility) */
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.activity-table thead {
+  background: #f0f4f8;
+  border-bottom: 2px solid #dce3ea;
+}
+
+.activity-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+}
+
+.activity-table tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s;
+}
+
+.activity-table tbody tr:hover {
+  background-color: #f9fbff;
+}
+
+.activity-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.activity-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.activity-table td.date {
+  font-weight: 500;
+  color: #1e2a38;
+  min-width: 120px;
+}
+
+.activity-table td.total {
+  font-weight: 600;
+  text-align: center;
+  background: #f5f5f5;
+  border-radius: 4px;
+  width: 60px;
+}
+
+/* Severity columns */
+.activity-table th.severity-c,
+.activity-table th.severity-h,
+.activity-table th.severity-m,
+.activity-table th.severity-l,
+.activity-table td.severity-c,
+.activity-table td.severity-h,
+.activity-table td.severity-m,
+.activity-table td.severity-l {
+  text-align: center;
+  font-weight: 600;
+  width: 50px;
+}
+
+.activity-table th.severity-c {
+  color: #c0392b;
+}
+
+.activity-table th.severity-h {
+  color: #e67e22;
+}
+
+.activity-table th.severity-m {
+  color: #2980b9;
+}
+
+.activity-table th.severity-l {
+  color: #888;
+}
+
+.activity-table td.severity-c {
+  color: #c0392b;
+  background: rgba(192, 57, 43, 0.05);
+  border-radius: 3px;
+}
+
+.activity-table td.severity-h {
+  color: #e67e22;
+  background: rgba(230, 126, 34, 0.05);
+  border-radius: 3px;
+}
+
+.activity-table td.severity-m {
+  color: #2980b9;
+  background: rgba(41, 128, 185, 0.05);
+  border-radius: 3px;
+}
+
+.activity-table td.severity-l {
+  color: #888;
+  background: rgba(136, 136, 136, 0.05);
+  border-radius: 3px;
+}
+
+/* Programmers cell */
+.activity-table td.programmers-cell {
+  min-width: 250px;
+}
+
+.programmers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.programmer-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+}
+
+.programmer-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* Error and empty states */
+.fixing-activity .error {
+  padding: 20px;
+  text-align: center;
+  color: #c0392b;
+  background: #fdecea;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.fixing-activity .no-data {
+  padding: 20px;
+  text-align: center;
+  color: #888;
+  background: #f5f5f5;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .fixing-activity {
+    padding: 12px;
+  }
+
+  .pivot-table-data {
+    font-size: 10px;
+  }
+
+  .pivot-table-data th,
+  .pivot-table-data td {
+    padding: 6px 8px;
+  }
+
+  .activity-table {
+    font-size: 11px;
+  }
+
+  .activity-table th,
+  .activity-table td {
+    padding: 8px;
+  }
+
+  .programmer-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}

@@ -134,6 +134,8 @@
         #debugOut .ok { color: #2ecc71; } #debugOut .warn { color: #f39c12; } #debugOut .err { color: #e74c3c; }
         #debugOut .head { color: #74b9ff; font-weight: bold; }
     </style>
+    <!-- Chart library for line charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -152,11 +154,12 @@
 <div id="clusterSections"></div>
 
 <details id="debugPanel">
-    <summary>🔍 Debug: Repo Number Inspector</summary>
+    <summary>🔍 Debug: Repo Inspector</summary>
     <div style="margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <input type="text" id="debugRepo" placeholder="Repo name e.g. SSG5-C1-BSQWebAPI" value="SSG5-C1-BSQWebAPI" />
-        <button onclick="runDebug()">Inspect (cached)</button>
-        <button onclick="clearRepoCache()" style="background:#c0392b;">Clear This Repo Cache</button>
+        <button onclick="runDebug()">Inspect</button>
+        <button onclick="viewRawCache()">View Raw</button>
+        <button onclick="clearRepoCache()" style="background:#c0392b;">Clear Cache</button>
         <span id="debugStatus" style="font-size:11px;color:#adf"></span>
     </div>
     <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -170,6 +173,16 @@
 <script>
     const organization = 'itbinus';
     const GHAS_PROJECT_ID = '1f663eb2-dd63-4b51-b000-f0949e3c8ab0';
+
+    // FNV-1a hash for PAT obfuscation (same as GHASResult.html)
+    function hash(s) {
+        let h = 2166136261;
+        for (let i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+        }
+        return (h >>> 0).toString(36);
+    }
 
     // dismissed counts as resolved (same as fixed) throughout this dashboard
     const isResolved = f => { const s = String(f?.state||'').toLowerCase(); return s === 'fixed' || s === 'dismissed'; };
@@ -339,6 +352,45 @@
                 const projectName = findProjectForRepo(r);
                 const { value: commits } = await window.GHASShared.getCommitsForRepo(organization, projectName, r, pat);
                 await randomDelay(300, 800);
+                 
+                // Enrich findings with attribution
+                try {
+                    const enriched = await window.GHASShared.enrichCacheWithAttribution(
+                        fixedFindings,
+                        organization,
+                        projectName,
+                        r,
+                        pat
+                    );
+                    console.log(`[GHASDashboard] ✓ Enriched ${enriched.length} findings for ${r}`);
+                     
+                    // Save enriched findings back to cache
+                    // Find all cache keys for this repo and update them with attribution
+                    if (window.GHASResult?.getAllCacheEntries && window.GHASResult?.updateCacheWithAttribution) {
+                        const allEntries = await window.GHASResult.getAllCacheEntries();
+                        const alertPat = /_apis\/alert\/repositories\/([^?\/]+)\/alerts/;
+                        const repoKeysToUpdate = [];
+                         
+                        for (const { key, data: entry } of allEntries) {
+                            const urlPart = key.slice('ghas:'.length).split('|u:')[0];
+                            const match = urlPart.match(alertPat);
+                            if (!match) continue;
+                            const repoName = decodeURIComponent(match[1]);
+                            if (sanitize(repoName) === sanitize(r)) {
+                                repoKeysToUpdate.push(key);
+                            }
+                        }
+                         
+                        console.log(`[GHASDashboard] Found ${repoKeysToUpdate.length} cache keys for ${r}`);
+                        for (const key of repoKeysToUpdate) {
+                            const success = await window.GHASResult.updateCacheWithAttribution(key, enriched);
+                            console.log(`[GHASDashboard] Updated key ${key.substring(0, 70)}...: ${success ? '✓' : '✗'}`);
+                        }
+                    }
+                } catch (enrichError) {
+                    console.warn(`[GHASDashboard] Attribution enrichment failed for ${r}:`, enrichError.message);
+                }
+                 
                 const byCommitter = window.GHASShared.attributeFixedFindingsByWeek(fixedFindings, commits);
                 for (const [name, d] of Object.entries(byCommitter)) {
                     if (!merged[name]) {
@@ -800,12 +852,16 @@
             const params = new URLSearchParams({ 'api-version': '7.2-preview.1', '$top': String(top) });
             if (continuationToken) params.set('continuationToken', continuationToken);
             const url = `https://advsec.dev.azure.com/${organization}/${projectId}/_apis/alert/repositories/${repo}/alerts?${params.toString()}`;
+            
+            console.log(`[getGhasResult] Fetching page ${page + 1}, token: ${continuationToken ? 'cont' : 'start'}`);
             const { data, headers } = await window.GHASResult.fetchDataWithHeaders(url, pat);
 
             const isCompactCache = !!(data && data.__compactCache === true);
             if (isCompactCache) {
                 fromCache = true;
+                console.log(`[getGhasResult] 📦 PAGE ${page + 1} FROM CACHE (compacted format, ${data?.value?.length || 0} items)`);
             } else {
+                console.log(`[getGhasResult] 🌐 PAGE ${page + 1} FROM API (fresh data, ${data?.value?.length || 0} items)`);
                 await randomDelay(500, 1500);
             }
 
@@ -814,7 +870,10 @@
             const marker = `top=${top}|token=${continuationToken ?? 'start'}|firstId=${firstId}|count=${items.length}`;
 
             page++;
-            if (seenPageMarkers.has(marker)) break;
+            if (seenPageMarkers.has(marker)) {
+                console.log(`[getGhasResult] Marker already seen, breaking pagination loop`);
+                break;
+            }
             seenPageMarkers.add(marker);
 
             let addedThisPage = 0;
@@ -827,12 +886,22 @@
             }
 
             const nextToken = headers.get('x-ms-continuationtoken');
-            if (!nextToken) break;
-            if (nextToken === continuationToken) break;
-            if (items.length > 0 && addedThisPage === 0) break;
+            if (!nextToken) {
+                console.log(`[getGhasResult] No continuation token, ending pagination`);
+                break;
+            }
+            if (nextToken === continuationToken) {
+                console.log(`[getGhasResult] Same continuation token, ending pagination`);
+                break;
+            }
+            if (items.length > 0 && addedThisPage === 0) {
+                console.log(`[getGhasResult] No new items added this page, ending pagination`);
+                break;
+            }
             continuationToken = nextToken;
         }
 
+        console.log(`[getGhasResult] ✓ Collected ${allFindings.length} total findings across ${page} pages (fromCache: ${fromCache})`);
         return { value: allFindings, fromCache };
     }
 
@@ -902,6 +971,20 @@
             _totals: clusterTotals(cl._projects)
         }));
         render(window.__clusters);
+        
+        // Enrich with programmer attribution from commits
+        console.log('[Dashboard] Starting attribution enrichment...');
+        const projects = (window.__clusters || []).flatMap(cl => cl._projects);
+        try {
+            await buildCommitterData(projects, pat, msg => {
+                console.log('[Dashboard] Attribution:', msg);
+            });
+            console.log('[Dashboard] ✓ Attribution enrichment complete');
+            setStatus(`✅ Live data loaded + Attribution enriched`, '#8f8');
+        } catch (e) {
+            console.warn('[Dashboard] Attribution enrichment failed:', e.message);
+            setStatus(`✅ Live data loaded (attribution failed)`, '#f39c12');
+        }
     }
 
     async function clearAllCache() {
@@ -985,10 +1068,24 @@
 
         const sanitized = repoName.replace(/[\s_@#\$%\^&\*!]/g, '-');
         let result, findings;
+         
+        console.log('════ [REPO INSPECTOR] START ════');
+        console.log('[REPO] Repo name:', repoName);
+        console.log('[REPO] Sanitized:', sanitized);
+         
         try {
+            console.log('[REPO] Fetching from getGhasResult()...');
             result   = await getGhasResult(GHAS_PROJECT_ID, pat, sanitized);
             findings = result.value || [];
+            console.log('[REPO] ✓ Fetched', findings.length, 'findings');
+            console.log('[REPO] ✓ From cache?', result.fromCache);
+            if (result.fromCache) {
+                console.log('[REPO] DATA SOURCE: 📦 COMPACTED CACHE (compressed format)');
+            } else {
+                console.log('[REPO] DATA SOURCE: 🌐 FRESH API (full format)');
+            }
         } catch(e) {
+            console.error('[REPO] ❌ API error:', e.message);
             out.innerHTML = `<span class="err">❌ API error: ${e.message}</span>`;
             return;
         }
@@ -1007,6 +1104,27 @@
             sevCounts[sev]     = (sevCounts[sev]     || 0) + 1;
             const combo = `${sev}+${state}`;
             comboCounts[combo] = (comboCounts[combo] || 0) + 1;
+        }
+         
+        console.log('[REPO] ─── FINDINGS BREAKDOWN ───');
+        console.log('[REPO] By state:', stateCounts);
+        console.log('[REPO] By severity:', sevCounts);
+         
+        // Check for attribution field
+        const withAttribution = findings.filter(f => f?.attribution).length;
+        const withoutAttribution = findings.filter(f => !f?.attribution).length;
+        console.log('[REPO] Attribution status:');
+        console.log('[REPO]   WITH attribution:', withAttribution);
+        console.log('[REPO]   WITHOUT attribution:', withoutAttribution);
+         
+        if (findings.length > 0) {
+            console.log('[REPO] Sample finding #0:');
+            const sample = findings[0];
+            console.log('[REPO]   alertId:', sample.alertId);
+            console.log('[REPO]   state:', sample.state);
+            console.log('[REPO]   severity:', sample.severity);
+            console.log('[REPO]   fixedDate:', sample.fixedDate);
+            console.log('[REPO]   attribution:', sample.attribution);
         }
 
         // --- Same logic as summarizeFixByDay (GHASResult) ---
@@ -1087,16 +1205,95 @@
             lines.push(`  ${cachedFixed} fixed / (${dbTotalActive} active + ${cachedFixed} fixed) = <span class="ok">${liveRate.toFixed(1)}%</span>`);
         }
 
+        // --- Attribution Analysis ---
+        const fixedWithAttrib = findings.filter(f => isResolved(f) && f?.attribution?.name).length;
+        const fixedWithoutAttrib = findings.filter(f => isResolved(f) && !f?.attribution?.name).length;
+        const programmers = {};
+        for (const f of findings) {
+            if (isResolved(f) && f?.attribution?.name) {
+                programmers[f.attribution.name] = (programmers[f.attribution.name] || 0) + 1;
+            }
+        }
+
         if (sampleFixed.length) {
             lines.push('');
             lines.push(`<span class="head">═══ SAMPLE FIXED FINDINGS (up to 3) ═══</span>`);
             for (const f of sampleFixed) {
-                lines.push(`  alertId:${f.alertId} sev:${f.severity} state:${f.state} fixedDate:${f.fixedDate || 'n/a'} hasFixedDate:${!!f.fixedDate}`);
+                const prog = f?.attribution?.name || '(no attribution)';
+                lines.push(`  alertId:${f.alertId} sev:${f.severity} programmer:${prog} fixedDate:${f.fixedDate || 'n/a'}`);
+            }
+        }
+
+        lines.push('');
+        lines.push(`<span class="head">═══ ATTRIBUTION STATUS ═══</span>`);
+        lines.push(`  Fixed findings with programmer name: ${fixedWithAttrib}`);
+        lines.push(`  Fixed findings WITHOUT programmer: ${fixedWithoutAttrib}`);
+        if (fixedWithAttrib > 0) {
+            lines.push(`  <span class="head">  Programmers (fixes by person):</span>`);
+            for (const [name, count] of Object.entries(programmers).sort((a, b) => b[1] - a[1])) {
+                lines.push(`    ${name}: ${count}`);
             }
         }
 
         out.innerHTML = lines.join('\n');
         st.textContent = `inspected ${findings.length} findings`;
+         
+        console.log('════ [REPO INSPECTOR] END ════');
+        console.log('[REPO] ✓ Inspection complete');
+        console.log('[REPO]   Findings with attribution:', withAttribution);
+        console.log('[REPO]   Findings without attribution:', withoutAttribution);
+    }
+
+    async function viewRawCache() {
+        const repoName = document.getElementById('debugRepo').value.trim();
+        const out = document.getElementById('debugOut');
+        if (!repoName) { out.innerHTML = '<span class="err">Enter repo name.</span>'; return; }
+
+        try {
+            const allEntries = await window.GHASResult.getAllCacheEntries();
+            const matching = allEntries.filter(e => e.key?.toLowerCase().includes(repoName.toLowerCase()));
+            
+            const lines = [];
+            lines.push(`<span class="head">═══ RAW CACHE DATA ═══</span>`);
+            lines.push(`Repository: ${repoName}`);
+            lines.push(`Matching entries: ${matching.length}`);
+            
+            if (matching.length === 0) {
+                lines.push(`<span class="warn">⚠ No cache found. Load repo in GHASResult.html first.</span>`);
+            } else {
+                for (let i = 0; i < matching.length; i++) {
+                    const entry = matching[i];
+                    const findings = entry.data?.payload?.value || [];
+                    
+                    lines.push('');
+                    lines.push(`<span class="head">Entry ${i + 1}: ${findings.length} findings</span>`);
+                    
+                    // Count attribution status
+                    const withAttrib = findings.filter(f => f?.attribution?.name).length;
+                    const withoutAttrib = findings.filter(f => !f?.attribution?.name).length;
+                    lines.push(`  With attribution: ${withAttrib}  |  Without: ${withoutAttrib}`);
+                    lines.push('');
+                    
+                    // Show first 3 findings in detail
+                    for (let j = 0; j < Math.min(3, findings.length); j++) {
+                        const f = findings[j];
+                        lines.push(`  [${j + 1}] alertId: ${f.alertId}`);
+                        lines.push(`      state: ${f.state}  |  severity: ${f.severity}`);
+                        lines.push(`      fixedDate: ${f.fixedDate || 'null'}`);
+                        lines.push(`      attribution: ${f.attribution ? JSON.stringify(f.attribution) : 'null'}`);
+                    }
+                    
+                    if (findings.length > 3) {
+                        lines.push(`  ... and ${findings.length - 3} more`);
+                    }
+                }
+            }
+
+            out.innerHTML = lines.join('\n');
+        } catch (e) {
+            out.innerHTML = `<span class="err">Error: ${e.message}</span>`;
+            console.error('[DEBUG] viewRawCache error:', e);
+        }
     }
 
     async function init() {
@@ -1126,9 +1323,174 @@
         if (cachedCount > 0) {
             st.textContent = `📦 Auto-loaded ${cachedCount} repos from cache`;
             st.style.color = '#adf';
+            
+            // Auto-load programmer attribution if cache has enriched data
+            console.log('[Dashboard] Checking if cache has attribution data...');
+            const hasAttribution = await checkCacheForAttribution();
+            if (hasAttribution) {
+                console.log('[Dashboard] Found attribution in cache, auto-loading...');
+                try {
+                    await autoLoadAttribution(clusters);
+                    console.log('[Dashboard] ✓ Attribution auto-loaded on page refresh');
+                } catch (e) {
+                    console.warn('[Dashboard] Auto-load attribution failed:', e.message);
+                }
+            }
         } else {
             st.textContent = 'No cache found — enter PAT and click Load Live Data (or visit GHASResult first)';
             st.style.color = '#f39c12';
+        }
+    }
+    
+    // Check if any cached findings have attribution field
+    async function checkCacheForAttribution() {
+        try {
+            const entries = await window.GHASResult.getAllCacheEntries();
+            for (const { data: entry } of entries) {
+                if (!entry?.payload?.value) continue;
+                const hasAttr = entry.payload.value.some(f => f?.attribution?.name);
+                if (hasAttr) return true;
+            }
+            return false;
+        } catch (e) {
+            console.warn('[Dashboard] checkCacheForAttribution error:', e);
+            return false;
+        }
+    }
+    
+    // Auto-render programmer attribution tables per cluster if cache has data
+    async function autoLoadAttribution(clusters) {
+        try {
+            for (const cl of clusters) {
+                const projects = cl._projects;
+                const clusterRepos = projects.flatMap(p => p.repos);
+                
+                // Get already-enriched findings from cache for this cluster
+                const fixedByRepo = await getFixedFindingsFromCache(clusterRepos);
+                
+                // Build committer data for this cluster only
+                const byCommitter = {};
+                for (const [repoName, findings] of Object.entries(fixedByRepo)) {
+                    for (const f of findings) {
+                        if (!f?.attribution?.name) continue;
+                        const name = f.attribution.name;
+                        if (!byCommitter[name]) {
+                            byCommitter[name] = {
+                                weeks: [
+                                    { label: 'This Week', critical: 0, high: 0, medium: 0, low: 0 },
+                                    { label: '1 Week Ago', critical: 0, high: 0, medium: 0, low: 0 },
+                                    { label: '2 Weeks Ago', critical: 0, high: 0, medium: 0, low: 0 },
+                                    { label: '3 Weeks Ago', critical: 0, high: 0, medium: 0, low: 0 }
+                                ],
+                                older: { label: 'Older', critical: 0, high: 0, medium: 0, low: 0 }
+                            };
+                        }
+                        
+                        // Calculate week bucket from fixedDate
+                        const fixedDate = new Date(f.fixedDate);
+                        const now = new Date();
+                        const daysSince = Math.floor((now - fixedDate) / (1000 * 60 * 60 * 24));
+                        const weekIndex = Math.floor(daysSince / 7);
+                        const sev = String(f.severity || 'low').toLowerCase().substring(0, 1);
+                        
+                        let bucket;
+                        if (weekIndex < 4) {
+                            bucket = byCommitter[name].weeks[weekIndex];
+                        } else {
+                            bucket = byCommitter[name].older;
+                        }
+                        
+                        if (sev === 'c') bucket.critical++;
+                        else if (sev === 'h') bucket.high++;
+                        else if (sev === 'm') bucket.medium++;
+                        else bucket.low++;
+                    }
+                }
+                
+                const entries = Object.entries(byCommitter).sort(([, a], [, b]) => {
+                    const score = d => d.weeks.reduce((s, w) => s + w.critical*8+w.high*4+w.medium*2+w.low, 0)
+                                       + d.older.critical*8 + d.older.high*4 + d.older.medium*2 + d.older.low;
+                    return score(b) - score(a);
+                });
+
+                if (entries.length === 0) continue;
+
+                // Find the section body for this cluster
+                const sectionBody = document.getElementById(`section-body-${cl.id}`);
+                if (!sectionBody) continue;
+
+                // Find or create programmer section within this cluster's body
+                let progSection = sectionBody.querySelector('.prog-section');
+                if (!progSection) {
+                    progSection = document.createElement('div');
+                    progSection.className = 'prog-section';
+                    sectionBody.appendChild(progSection);
+                }
+
+                const hdr = document.createElement('div');
+                hdr.className = 'prog-section-header';
+                hdr.innerHTML = `<span>👤 Programmer Attribution (auto-loaded)</span>`;
+
+                const tableWrap = document.createElement('div');
+                tableWrap.style.overflowX = 'auto';
+
+                const table = document.createElement('table');
+                table.className = 'prog-table';
+                table.innerHTML = `
+                  <thead>
+                    <tr>
+                      <th>Programmer</th>
+                      <th>Week</th>
+                      <th style="color:#c0392b;text-align:right">Crit</th>
+                      <th style="color:#e67e22;text-align:right">High</th>
+                      <th style="color:#2980b9;text-align:right">Med</th>
+                      <th style="color:#888;text-align:right">Low</th>
+                      <th style="text-align:right">Total</th>
+                    </tr>
+                  </thead>`;
+
+                const tbody = document.createElement('tbody');
+                const n = (v, color) => v > 0
+                    ? `<td class="num" style="color:${color};font-weight:bold">${v}</td>`
+                    : `<td class="num dim">-</td>`;
+
+                for (const [name, d] of entries) {
+                    const rows = [];
+                    for (const w of d.weeks) {
+                        const tot = w.critical + w.high + w.medium + w.low;
+                        if (tot > 0) rows.push({ label: w.label, ...w });
+                    }
+                    const oldTot = d.older.critical + d.older.high + d.older.medium + d.older.low;
+                    if (oldTot > 0) rows.push({ label: d.older.label, ...d.older });
+                    if (rows.length === 0) continue;
+
+                    rows.forEach((row, idx) => {
+                        const tr = document.createElement('tr');
+                        if (idx > 0) tr.style.borderTop = '1px solid #f0f0f0';
+                        tr.innerHTML = `
+                            ${idx === 0 ? `<td style="font-weight:bold;border-bottom:1px solid #e0d0f0">${name}</td>` : '<td></td>'}
+                            <td>${row.label}</td>
+                            ${n(row.critical, '#c0392b')}
+                            ${n(row.high, '#e67e22')}
+                            ${n(row.medium, '#2980b9')}
+                            ${n(row.low, '#888')}
+                            <td class="num" style="font-weight:bold">${row.critical+row.high+row.medium+row.low}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                if (tbody.children.length > 0) {
+                    table.appendChild(tbody);
+                    tableWrap.appendChild(table);
+                    progSection.innerHTML = '';
+                    progSection.appendChild(hdr);
+                    progSection.appendChild(tableWrap);
+                    console.log(`[Dashboard] ✓ Programmer attribution auto-loaded for ${cl.name}`);
+                }
+            }
+        } catch (e) {
+            console.warn('[Dashboard] autoLoadAttribution error:', e);
         }
     }
 

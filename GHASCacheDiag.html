@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GHAS Cache Diagnostics</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .section { margin: 20px 0; padding: 10px; border: 1px solid #444; }
+        .log { background: #0d0d0d; padding: 10px; max-height: 300px; overflow-y: auto; font-size: 11px; white-space: pre-wrap; }
+        button { padding: 8px 16px; background: #007acc; color: #fff; border: none; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a9e; }
+        .error { color: #f48771; }
+        .success { color: #4ec9b0; }
+        .info { color: #9cdcfe; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { border: 1px solid #444; padding: 5px; text-align: left; }
+        th { background: #252526; }
+        tr:hover { background: #2d2d2d; }
+    </style>
+</head>
+<body>
+    <h1>GHAS Cache Diagnostics</h1>
+    
+    <div class="section">
+        <h2>Cache Operations</h2>
+        <button onclick="checkCache()">Check Cache Status</button>
+        <button onclick="clearCacheBtn()">Clear Cache</button>
+        <button onclick="location.reload()">Reload Page</button>
+    </div>
+
+    <div class="section">
+        <h2>Console Output</h2>
+        <div class="log" id="logOutput"></div>
+    </div>
+
+    <div class="section">
+        <h2>Cache Entries</h2>
+        <table id="entriesTable">
+            <thead>
+                <tr>
+                    <th>Key (truncated)</th>
+                    <th>TS</th>
+                    <th>Exp</th>
+                    <th>Fresh?</th>
+                    <th>Payload.Value Len</th>
+                </tr>
+            </thead>
+            <tbody id="entriesBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Base fetch functions (required before cache.js) -->
+    <script>
+        window.GHASResult = {};
+        window.GHASResult.fetchData = async (url, pat) => {
+            const auth = 'Basic ' + btoa(':' + (pat || ''));
+            const res = await fetch(url, { headers: { 'Authorization': auth } });
+            return await res.json();
+        };
+        window.GHASResult.fetchDataWithHeaders = async (url, pat) => {
+            const auth = 'Basic ' + btoa(':' + (pat || ''));
+            const res = await fetch(url, { headers: { 'Authorization': auth } });
+            return { data: await res.json(), headers: res.headers };
+        };
+        
+        // Capture console.log for display
+        const originalLog = console.log;
+        const logBuffer = [];
+        console.log = (...args) => {
+            originalLog(...args);
+            const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a, null, 2)).join(' ');
+            logBuffer.push(msg);
+            const logEl = document.getElementById('logOutput');
+            if (logEl) logEl.textContent = logBuffer.slice(-50).join('\n');
+        };
+    </script>
+
+    <!-- Load cache.js -->
+    <script src="GHASResult.cache.js"></script>
+
+    <!-- Diagnostics -->
+    <script>
+        async function checkCache() {
+            try {
+                console.log('=== CACHE DIAGNOSTICS ===');
+                console.log('Checking for getAllCacheEntries...');
+                
+                if (!window.GHASResult.getAllCacheEntries) {
+                    console.log('ERROR: getAllCacheEntries not available');
+                    return;
+                }
+                
+                const entries = await window.GHASResult.getAllCacheEntries();
+                console.log(`Found ${entries.length} cache entries`);
+                
+                const tbody = document.getElementById('entriesBody');
+                tbody.innerHTML = '';
+                
+                const now = Date.now();
+                for (const entry of entries) {
+                    const isFresh = (entry.data?.exp || now) > now;
+                    const valueLen = entry.data?.payload?.value?.length || 0;
+                    
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td>${entry.key.substring(0, 50)}...</td>
+                        <td>${entry.data?.ts || 'N/A'}</td>
+                        <td>${entry.data?.exp || 'N/A'}</td>
+                        <td class="${isFresh ? 'success' : 'error'}">${isFresh ? 'YES' : 'NO (EXPIRED)'}</td>
+                        <td>${valueLen}</td>
+                    `;
+                    
+                    console.log(`Entry: ${entry.key.substring(0, 40)}... → ${valueLen} findings, fresh: ${isFresh}`);
+                }
+                
+                if (entries.length === 0) {
+                    console.log('WARNING: No cache entries found!');
+                }
+                
+            } catch (e) {
+                console.log('ERROR: ' + e.message);
+                console.log(e.stack);
+            }
+        }
+        
+        async function clearCacheBtn() {
+            try {
+                const result = await window.GHASResult.clearCache();
+                console.log('Cache cleared:', result);
+                await checkCache();
+            } catch (e) {
+                console.log('ERROR clearing cache:', e.message);
+            }
+        }
+        
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            setTimeout(checkCache, 1000);
+        });
+    </script>
+</body>
+</html>

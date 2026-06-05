@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Cache Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #0d0d0d; color: #d4d4d4; }
+        button { padding: 10px 20px; margin: 5px; background: #007acc; color: #fff; border: none; cursor: pointer; }
+        button:hover { background: #005a9e; }
+        .log { background: #1e1e1e; padding: 10px; border: 1px solid #444; max-height: 400px; overflow-y: auto; margin: 10px 0; }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .info { color: #9cdcfe; }
+    </style>
+</head>
+<body>
+    <h1>Cache Layer Test</h1>
+    <p>This page tests the cache.js logging to verify data flow.</p>
+    
+    <div>
+        <button onclick="testFetch()">Test fetchData() logging</button>
+        <button onclick="testGetAll()">Test getAllCacheEntries()</button>
+        <button onclick="clearCache()">Clear Cache</button>
+    </div>
+    
+    <h2>Console Output</h2>
+    <div class="log" id="output"></div>
+
+    <script>
+        // Capture console output
+        const logLines = [];
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+            logLines.push(msg);
+            document.getElementById('output').textContent = logLines.slice(-100).join('\n');
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            const msg = '❌ ' + args.map(a => String(a)).join(' ');
+            logLines.push(msg);
+            document.getElementById('output').textContent = logLines.slice(-100).join('\n');
+        };
+        
+        // Base fetch functions (required)
+        window.GHASResult = {};
+        window.GHASResult.fetchData = async (url, pat) => {
+            console.log('[Test] Base fetchData called (would fetch from API)');
+            return { value: [
+                { alertId: '1', severity: 'high', state: 'active', fixedDate: null },
+                { alertId: '2', severity: 'medium', state: 'fixed', fixedDate: '2026-06-01T10:00:00Z' },
+                { alertId: '3', severity: 'critical', state: 'dismissed', fixedDate: '2026-05-30T14:00:00Z' }
+            ]};
+        };
+        
+        window.GHASResult.fetchDataWithHeaders = async (url, pat) => {
+            console.log('[Test] Base fetchDataWithHeaders called (would fetch from API)');
+            return {
+                data: { value: [
+                    { alertId: '4', severity: 'low', state: 'active', fixedDate: null }
+                ]},
+                headers: { get: () => null }
+            };
+        };
+    </script>
+    
+    <!-- Load cache layer -->
+    <script src="GHASResult.cache.js"></script>
+    
+    <script>
+        async function testFetch() {
+            logLines.length = 0;
+            console.log('═══ TEST: fetchData() ═══');
+            
+            try {
+                const url = 'https://example.com/test';
+                const pat = 'test-pat';
+                
+                console.log('Test 1: First call (should fetch from API and store)');
+                let result = await window.GHASResult.fetchData(url, pat);
+                console.log('Result:', result);
+                
+                console.log('\nTest 2: Second call (should retrieve from cache)');
+                result = await window.GHASResult.fetchData(url, pat);
+                console.log('Result:', result);
+                
+                console.log('✓ Test complete - check console for fetch/idbGet logs');
+            } catch (e) {
+                console.error('Test failed:', e.message);
+            }
+        }
+        
+        async function testGetAll() {
+            logLines.length = 0;
+            console.log('═══ TEST: getAllCacheEntries() ═══');
+            
+            try {
+                console.log('Calling getAllCacheEntries()...');
+                const entries = await window.GHASResult.getAllCacheEntries();
+                console.log('Found', entries.length, 'entries');
+                
+                for (let i = 0; i < entries.length; i++) {
+                    const e = entries[i];
+                    console.log(`Entry ${i}:`);
+                    console.log(`  Key: ${e.key.substring(0, 50)}...`);
+                    console.log(`  Has payload: ${!!e.data?.payload}`);
+                    console.log(`  Has value: ${!!e.data?.payload?.value}`);
+                    console.log(`  Value length: ${e.data?.payload?.value?.length || 0}`);
+                }
+                console.log('✓ Test complete');
+            } catch (e) {
+                console.error('Test failed:', e.message);
+            }
+        }
+        
+        async function clearCache() {
+            console.log('Clearing cache...');
+            await window.GHASResult.clearCache();
+            console.log('✓ Cache cleared');
+        }
+        
+        // Auto-run test on load
+        window.addEventListener('load', () => {
+            console.log('Page loaded. Click buttons to run tests.');
+            console.log('Check browser Console (F12) for detailed logging.');
+        });
+    </script>
+</body>
+</html>
