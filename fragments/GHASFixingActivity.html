@@ -64,6 +64,19 @@
             white-space: pre-wrap;
             word-break: break-all;
         }
+        
+        /* When fragment is embedded, hide standalone UI elements */
+        body.embedded header,
+        body.embedded .controls,
+        body.embedded .section:nth-child(2),
+        body.embedded .section:nth-child(3) {
+            display: none;
+        }
+        
+        body.embedded #activityContainer {
+            margin: 0;
+            padding: 0;
+        }
     </style>
     <link rel="stylesheet" href="./fixing-activity.css">
 </head>

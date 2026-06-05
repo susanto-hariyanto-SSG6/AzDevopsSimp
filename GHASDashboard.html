@@ -151,6 +151,8 @@
     <div style="padding:20px;color:#888;">Loading clusters…</div>
 </div>
 
+<div id="fixingActivityContainer" style="display:none;"></div>
+
 <div id="clusterSections"></div>
 
 <details id="debugPanel">
@@ -832,6 +834,38 @@
     function render(clusters) {
         renderClusterCards(clusters);
         renderSections(clusters);
+        loadFixingActivityFragment();
+    }
+    
+    // Load fixing activity fragment into dashboard
+    async function loadFixingActivityFragment() {
+        try {
+            const container = document.getElementById('fixingActivityContainer');
+            if (!container) return;
+            
+            // Check if there's cached data
+            const hasCache = await window.GHASResult?.getAllCacheEntries?.();
+            if (!hasCache || hasCache.length === 0) {
+                console.log('[Dashboard] No cache data for fixing activity fragment, skipping');
+                return;
+            }
+            
+            console.log('[Dashboard] Loading fixing activity fragment...');
+            container.style.display = 'block';
+            
+            // Get cluster config from init (stored in window.__clusterDef)
+            const clusterConfig = window.__clusterDef || {};
+            
+            // Render with embedded: true to collapse detail tables by default
+            // Pass cluster config to avoid path issues in embedded context
+            await window.FixingActivity.renderDailyActivity(container, { 
+                embedded: true,
+                clusterConfig: clusterConfig
+            });
+            console.log('[Dashboard] ✓ Fixing activity fragment loaded');
+        } catch (e) {
+            console.warn('[Dashboard] Error loading fixing activity fragment:', e);
+        }
     }
 
     function randomDelay(minMs = 500, maxMs = 2000) {
@@ -1306,6 +1340,9 @@
             return;
         }
 
+        // Store cluster config for use by embedded fragments
+        window.__clusterDef = clusterDef;
+
         // Auto-mount from IndexedDB cache (shared across tabs)
         await loadFromCache();
         const cachedCount = Object.keys(liveData).length;
@@ -1498,6 +1535,9 @@
 </script>
 <script src="./GHASResult.cache.js"></script>
 <script src="./shared.js"></script>
+<link rel="stylesheet" href="./fragments/fixing-activity.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="./fragments/fixing-activity.js"></script>
 <script>init();</script>
 </body>
 </html>

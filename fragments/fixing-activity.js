@@ -360,31 +360,43 @@
      console.warn('[FixingActivity] No data for combined chart');
      return;
    }
-    
+     
    // Create wrapper
    const chartDiv = document.createElement('div');
    chartDiv.className = 'combined-chart-container';
-    
+     
    const title = document.createElement('h3');
    title.textContent = 'Daily Fixing Activity Across All Clusters';
    title.style.marginTop = '0';
-   title.style.marginBottom = '15px';
+   title.style.marginBottom = '5px';
     
+   const subtitle = document.createElement('p');
+   subtitle.textContent = '(Click legend to select cluster and drill into programmer data)';
+   subtitle.style.margin = '0 0 15px 0';
+   subtitle.style.fontSize = '12px';
+   subtitle.style.color = '#888';
+     
    const canvas = document.createElement('canvas');
    canvas.id = 'combined-daily-chart';
    canvas.style.maxWidth = '100%';
    canvas.style.maxHeight = '400px';
     
+   const programmersDiv = document.createElement('div');
+   programmersDiv.id = 'programmer-breakdown-placeholder';
+   programmersDiv.style.marginTop = '20px';
+     
    chartDiv.appendChild(title);
+   chartDiv.appendChild(subtitle);
    chartDiv.appendChild(canvas);
+   chartDiv.appendChild(programmersDiv);
    container.appendChild(chartDiv);
-    
+     
    // Load Chart.js if not already loaded
    if (!window.Chart) {
      console.warn('[FixingActivity] Chart.js not loaded, skipping chart');
      return;
    }
-    
+     
    // Define colors for clusters
    const colors = [
      '#27ae60', // green
@@ -397,32 +409,53 @@
      '#34495e', // dark gray
    ];
     
+   // Store cluster names and colors for legend click handling
+   const clusterList = Object.entries(clusters).map(([name], idx) => ({
+     name,
+     color: colors[idx % colors.length]
+   }));
+    
+   let chartInstance = null;
+   let selectedCluster = null;
+    
    // Build datasets for each cluster
-   const datasets = Object.entries(clusters).map(([clusterName, totals], index) => {
-     const color = colors[index % colors.length];
-     return {
-       label: clusterName,
-       data: totals,
-       borderColor: color,
-       backgroundColor: color.replace(')', ', 0.1)').replace('rgb', 'rgba'),
-       borderWidth: 2.5,
-       tension: 0.4,
-       fill: false,
-       pointRadius: 4,
-       pointBackgroundColor: color,
-       pointBorderColor: '#fff',
-       pointBorderWidth: 2,
-       pointHoverRadius: 6
-     };
+   const buildDatasets = (hideUnselected = false) => {
+     return Object.entries(clusters).map(([clusterName, totals], index) => {
+       const color = colors[index % colors.length];
+       const isSelected = !selectedCluster || selectedCluster === clusterName;
+        
+       return {
+         label: clusterName,
+         data: totals,
+         borderColor: color,
+         backgroundColor: color.replace(')', ', 0.1)').replace('rgb', 'rgba'),
+         borderWidth: isSelected ? 2.5 : 1,
+         opacity: isSelected ? 1 : 0.3,
+         tension: 0.4,
+         fill: false,
+         pointRadius: isSelected ? 4 : 2,
+         pointBackgroundColor: color,
+         pointBorderColor: '#fff',
+         pointBorderWidth: isSelected ? 2 : 1,
+         pointHoverRadius: isSelected ? 6 : 4,
+         hidden: hideUnselected && !isSelected
+       };
+     });
+   };
+   // Format dates to MM-DD only (remove year)
+   const formattedDates = dates.map(dateStr => {
+     // dateStr format: "2026-06-04"
+     const parts = dateStr.split('-');
+     return `${parts[1]}-${parts[2]}`; // MM-DD
    });
     
    // Create chart
    const ctx = canvas.getContext('2d');
-   new window.Chart(ctx, {
+   chartInstance = new window.Chart(ctx, {
      type: 'line',
      data: {
-       labels: dates,
-       datasets: datasets
+       labels: formattedDates,
+       datasets: buildDatasets()
      },
      options: {
        responsive: true,
@@ -439,6 +472,33 @@
              font: { size: 12 },
              padding: 12,
              usePointStyle: true
+           },
+           onClick: async (e, legendItem, legend) => {
+             // Prevent default behavior
+             e.native.stopImmediatePropagation();
+              
+             const clickedCluster = legendItem.text;
+             console.log('[FixingActivity] Legend clicked:', clickedCluster);
+              
+             // Toggle selection
+             if (selectedCluster === clickedCluster) {
+               selectedCluster = null;
+               console.log('[FixingActivity] Deselected cluster, showing all');
+             } else {
+               selectedCluster = clickedCluster;
+               console.log('[FixingActivity] Selected cluster:', selectedCluster);
+             }
+              
+             // Update datasets
+             chartInstance.data.datasets = buildDatasets();
+             chartInstance.update();
+              
+             // If a cluster is selected, show programmer breakdown
+             if (selectedCluster) {
+               await renderProgrammerBreakdown(selectedCluster);
+             } else {
+               document.getElementById('programmer-breakdown-placeholder').innerHTML = '';
+             }
            }
          },
          title: {
@@ -471,6 +531,169 @@
        }
      }
    });
+    
+   // Function to render programmer breakdown when cluster is selected
+   async function renderProgrammerBreakdown(clusterName) {
+     try {
+       console.log('[FixingActivity] Rendering programmer breakdown for:', clusterName);
+       const placeholder = document.getElementById('programmer-breakdown-placeholder');
+        
+       // Get cache entries
+       const cacheEntries = await window.GHASResult.getAllCacheEntries();
+       const fixedFindings = await getFixedFindingsWithProgrammers(cacheEntries);
+        
+       // Get cluster config to find repos in this cluster
+       let clusterConfig = window.__clusterDef || {};
+       if (!clusterConfig.clusters) {
+         try {
+           const resp = await fetch('../GHASCluster.json');
+           if (resp.ok) clusterConfig = await resp.json();
+         } catch (e) {
+           console.warn('[FixingActivity] Could not load cluster config for programmer breakdown');
+         }
+       }
+        
+       // Find repos in this cluster
+       const clusterRepos = new Set();
+       if (clusterConfig.clusters) {
+         for (const cl of clusterConfig.clusters) {
+           if (cl.name === clusterName && cl.projects) {
+             for (const proj of cl.projects) {
+               const repos = Array.isArray(proj.repos) ? proj.repos : [proj.repos];
+               repos.forEach(r => clusterRepos.add(r.replace(/[\s_@#$%^&*!]/g, '-')));
+             }
+           }
+         }
+       }
+        
+       // Filter findings for this cluster
+       const clusterFindings = fixedFindings.filter(f => clusterRepos.has(f.repoName));
+       console.log('[FixingActivity] Found', clusterFindings.length, 'findings in cluster', clusterName);
+        
+       if (clusterFindings.length === 0) {
+         placeholder.innerHTML = '<div style="padding:10px;color:#888;font-size:12px;">No findings for this cluster.</div>';
+         return;
+       }
+        
+       // Group by programmer and date
+       const byProgrammer = {};
+       for (const finding of clusterFindings) {
+         const prog = finding.programmer || 'Unknown';
+         if (!byProgrammer[prog]) {
+           byProgrammer[prog] = {};
+         }
+         const dateStr = finding.fixedDate.split('T')[0];
+         byProgrammer[prog][dateStr] = (byProgrammer[prog][dateStr] || 0) + 1;
+       }
+        
+       // Ensure all dates exist for all programmers (align with main chart)
+       const allDates = new Set(dates);
+       for (const prog in byProgrammer) {
+         for (const date of allDates) {
+           if (!(date in byProgrammer[prog])) {
+             byProgrammer[prog][date] = 0;
+           }
+         }
+       }
+        
+       // Build programmer datasets (lighter styling)
+       const programmers = Object.keys(byProgrammer).sort();
+       const progDatasets = programmers.map((prog, idx) => {
+         const progData = dates.map(d => byProgrammer[prog][d] || 0);
+         const progColor = `hsl(${(idx * 360 / programmers.length) % 360}, 60%, 70%)`;
+          
+         return {
+           label: prog,
+           data: progData,
+           borderColor: progColor,
+           backgroundColor: 'transparent',
+           borderWidth: 1.5,
+           borderDash: [5, 5],
+           tension: 0.2,
+           fill: false,
+           pointRadius: 2,
+           pointBackgroundColor: progColor,
+           pointBorderColor: '#fff',
+           pointBorderWidth: 1,
+           pointHoverRadius: 4
+         };
+       });
+        
+       // Create programmer chart
+       const progChartDiv = document.createElement('div');
+       progChartDiv.style.marginTop = '10px';
+       progChartDiv.style.padding = '15px';
+       progChartDiv.style.backgroundColor = '#fafbfc';
+       progChartDiv.style.borderRadius = '6px';
+        
+       const progTitle = document.createElement('h4');
+       progTitle.textContent = `Programmer Activity in ${clusterName}`;
+       progTitle.style.margin = '0 0 10px 0';
+       progTitle.style.fontSize = '13px';
+       progTitle.style.color = '#1e2a38';
+        
+       const progCanvas = document.createElement('canvas');
+       progCanvas.id = 'programmer-chart-' + clusterName.replace(/\s/g, '-');
+       progCanvas.style.maxWidth = '100%';
+       progCanvas.style.maxHeight = '250px';
+        
+       progChartDiv.appendChild(progTitle);
+       progChartDiv.appendChild(progCanvas);
+       placeholder.innerHTML = '';
+       placeholder.appendChild(progChartDiv);
+        
+       // Render programmer chart
+       const progCtx = progCanvas.getContext('2d');
+       new window.Chart(progCtx, {
+         type: 'line',
+         data: {
+           labels: formattedDates,
+           datasets: progDatasets
+         },
+         options: {
+           responsive: true,
+           maintainAspectRatio: true,
+           interaction: {
+             mode: 'index',
+             intersect: false,
+           },
+           plugins: {
+             legend: {
+               display: true,
+               position: 'bottom',
+               labels: {
+                 font: { size: 11 },
+                 padding: 8,
+                 usePointStyle: true
+               }
+             },
+             title: {
+               display: false
+             }
+           },
+           scales: {
+             y: {
+               beginAtZero: true,
+               title: {
+                 display: true,
+                 text: 'Fixes by Programmer',
+                 font: { size: 11 }
+               }
+             },
+             x: {
+               grid: {
+                 display: false
+               }
+             }
+           }
+         }
+       });
+     } catch (e) {
+       console.error('[FixingActivity] Error rendering programmer breakdown:', e);
+       document.getElementById('programmer-breakdown-placeholder').innerHTML = 
+         `<div style="padding:10px;color:#c0392b;font-size:12px;">Error: ${e.message}</div>`;
+     }
+   }
   }
   
   /**
@@ -566,105 +789,159 @@
   /**
   * Main public API - Load and render daily activity from cache as pivot tables by cluster
   * @param {HTMLElement} container - Element to render into
-  * @param {Object} options - { maxDays: 30 }
+  * @param {Object} options - { maxDays: 30, embedded: false, clusterConfig: null }
   */
   async function renderDailyActivity(container, options = {}) {
    try {
      console.log('[FixingActivity] Starting renderDailyActivity', { container: !!container, options });
-      
+       
      if (!container) {
        console.error('[FixingActivity] No container provided');
        return;
      }
       
+     const { embedded = false, clusterConfig: providedConfig = null } = options;
+       
      // Get cache entries
      if (!window.GHASResult?.getAllCacheEntries) {
        console.error('[FixingActivity] Cache getAllCacheEntries not available');
        container.innerHTML = '<div class="error">Cache not available</div>';
        return;
      }
-      
+       
      console.log('[FixingActivity] Getting cache entries...');
      const cacheEntries = await window.GHASResult.getAllCacheEntries();
      console.log('[FixingActivity] Cache entries:', cacheEntries ? cacheEntries.length : 0);
-      
+       
      if (!cacheEntries || cacheEntries.length === 0) {
        console.warn('[FixingActivity] No cache entries found');
        container.innerHTML = '<div class="error">No cached data found</div>';
        return;
      }
-      
+       
      // Extract fixed findings
      console.log('[FixingActivity] Extracting fixed findings...');
      const fixedFindings = await getFixedFindingsWithProgrammers(cacheEntries);
      console.log('[FixingActivity] Fixed findings:', fixedFindings.length);
-      
+       
      if (fixedFindings.length === 0) {
        console.warn('[FixingActivity] No fixed findings in cache');
        container.innerHTML = '<div class="no-data">No fixed findings in cache</div>';
        return;
      }
-      
+       
      // Load cluster config
      console.log('[FixingActivity] Loading cluster config...');
-     let clusterConfig = {};
-     try {
-       const response = await fetch('../GHASCluster.json');
-       clusterConfig = await response.json();
-       console.log('[FixingActivity] ✓ Cluster config loaded:', clusterConfig);
-       console.log('[FixingActivity] Cluster summary:', {
-         clusterCount: clusterConfig?.clusters?.length || 0,
-         clusters: clusterConfig?.clusters?.map(c => ({
-           name: c.name,
-           projectCount: c.projects?.length || 0
-         })) || []
-       });
-     } catch (e) {
-       console.warn('[FixingActivity] Could not load cluster config:', e.message);
+     let clusterConfig = providedConfig || {};
+      
+     // If no config provided, try to load from file (fallback for standalone)
+     if (!providedConfig) {
+       try {
+         // Try relative path for standalone (fragments directory)
+         let configPath = '../GHASCluster.json';
+         let response = await fetch(configPath);
+          
+         // If that fails (embedded), try root path
+         if (!response.ok) {
+           console.log('[FixingActivity] ../GHASCluster.json not found, trying ./GHASCluster.json');
+           configPath = './GHASCluster.json';
+           response = await fetch(configPath);
+         }
+          
+         if (response.ok) {
+           clusterConfig = await response.json();
+           console.log('[FixingActivity] ✓ Cluster config loaded from ' + configPath, clusterConfig);
+         } else {
+           console.warn('[FixingActivity] Could not load cluster config from any path');
+         }
+       } catch (e) {
+         console.warn('[FixingActivity] Could not load cluster config:', e.message);
+       }
+     } else {
+       console.log('[FixingActivity] Using provided cluster config');
      }
       
+     console.log('[FixingActivity] Cluster summary:', {
+       clusterCount: clusterConfig?.clusters?.length || 0,
+       clusters: clusterConfig?.clusters?.map(c => ({
+         name: c.name,
+         projectCount: c.projects?.length || 0
+       })) || []
+     });
+       
      // Group by cluster
      console.log('[FixingActivity] Grouping by cluster...');
      const byCluster = groupFindingsByCluster(fixedFindings, clusterConfig);
      console.log('[FixingActivity] Clusters:', Object.keys(byCluster));
-      
+       
      // Render combined chart + pivot tables
      console.log('[FixingActivity] Building daily totals...');
      const dailyData = buildDailyTotals(byCluster);
-      
+       
      console.log('[FixingActivity] Building pivot tables...');
      let html = '<div class="fixing-activity">';
-      
+       
      // Render combined chart at the top
      html += '<div class="combined-chart-placeholder"></div>';
-      
+       
      for (const [clusterName, clusterFindings] of Object.entries(byCluster)) {
        if (clusterFindings.length === 0) {
          console.log(`[FixingActivity] Skipping empty cluster: ${clusterName}`);
          continue;
        }
-          
+           
        console.log(`[FixingActivity] Rendering cluster: ${clusterName} (${clusterFindings.length} findings)`);
-        
-       // Create cluster section
-       html += `<div class="cluster-section" data-cluster="${clusterName}">`;
          
+       // Create cluster section with collapsible header
+       const collapsedClass = embedded ? 'collapsed' : '';
+       html += `<div class="cluster-section ${collapsedClass}" data-cluster="${clusterName}">`;
+       html += `<div class="cluster-section-header" style="cursor:pointer; user-select:none; padding:8px 0; font-weight:600; color:#1e2a38;">
+                  <span class="cluster-section-toggle">▼</span>${clusterName}
+                </div>`;
+       html += `<div class="cluster-section-body" style="display:${embedded ? 'none' : 'block'};">`;
+          
        const pivotData = buildPivotTable(clusterFindings);
        console.log(`[FixingActivity] Pivot dates: ${pivotData.dates.length}, programmers: ${pivotData.programmers.length}`);
        html += renderPivotTable(clusterName, pivotData, options);
-       html += '</div>';
+        
+       html += '</div></div>';
      }
      html += '</div>';
-        
+         
      console.log('[FixingActivity] Setting HTML:', html.length, 'chars');
      container.innerHTML = html;
       
+     // Set up collapsible toggles
+     if (embedded) {
+       const headers = container.querySelectorAll('.cluster-section-header');
+       headers.forEach(header => {
+         header.addEventListener('click', (e) => {
+           const section = header.parentElement;
+           const body = section.querySelector('.cluster-section-body');
+           const toggle = header.querySelector('.cluster-section-toggle');
+            
+           const isCollapsed = section.classList.contains('collapsed');
+           if (isCollapsed) {
+             section.classList.remove('collapsed');
+             body.style.display = 'block';
+             toggle.textContent = '▼';
+             console.log(`[FixingActivity] Expanded ${section.dataset.cluster}`);
+           } else {
+             section.classList.add('collapsed');
+             body.style.display = 'none';
+             toggle.textContent = '▶';
+             console.log(`[FixingActivity] Collapsed ${section.dataset.cluster}`);
+           }
+         });
+       });
+     }
+       
      // Now render combined chart into the placeholder (after DOM is ready)
      const chartPlaceholder = container.querySelector('.combined-chart-placeholder');
      if (chartPlaceholder) {
        renderCombinedLineChart(chartPlaceholder, dailyData.dates, dailyData.clusters);
      }
-      
+       
      console.log(`[FixingActivity] ✓ Rendered ${fixedFindings.length} fixed findings in ${Object.keys(byCluster).length} cluster tables`);
    } catch (e) {
      console.error('[FixingActivity] Error rendering:', e);

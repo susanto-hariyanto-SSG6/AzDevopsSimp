@@ -24,6 +24,24 @@
   page-break-inside: avoid;
 }
 
+/* Collapsible cluster sections (hidden by default when embedded) */
+.cluster-section.collapsed {
+  display: none;
+}
+
+.cluster-section-toggle {
+  display: inline-block;
+  margin-right: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+  transition: transform 0.2s;
+}
+
+.cluster-section.collapsed .cluster-section-toggle {
+  transform: rotate(-90deg);
+}
+
 .combined-chart-container {
   background: #ffffff;
   border: 1px solid #e0e6ed;
