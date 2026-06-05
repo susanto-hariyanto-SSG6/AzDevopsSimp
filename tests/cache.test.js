@@ -229,3 +229,72 @@ describe('clearCacheByPattern', () => {
     expect(entries.some(e => e.key.includes('repo-keep'))).toBe(true);
   });
 });
+
+// ── updateCacheWithAttribution ────────────────────────────────────────────────
+describe('updateCacheWithAttribution', () => {
+  const ALERT_URL_WITH_PARAMS =
+    'https://dev.azure.com/itbinus/proj/_apis/alert/repositories/repo-attr/alerts?api-version=7.1-preview.1&%24top=100';
+
+  test('returns false when key does not exist in cache', async () => {
+    const result = await api.updateCacheWithAttribution('ghas:nonexistent-key|u:abc', []);
+    expect(result).toBe(false);
+  });
+
+  test('updates attribution on matching finding, preserves ts/exp', async () => {
+    baseFetchWithHeaders.mockResolvedValue({
+      data: { value: [{ alertId: 10, severity: 'high', state: 'fixed', fixedDate: '2024-06-10T00:00:00Z' }] },
+      headers: { get: () => null },
+    });
+
+    await api.fetchDataWithHeaders(ALERT_URL_WITH_PARAMS, 'pat-attr');
+
+    const entriesBefore = await api.getAllCacheEntries();
+    const keyBefore = entriesBefore[0].key;
+    const tsBefore  = entriesBefore[0].data.ts;
+    const expBefore = entriesBefore[0].data.exp;
+
+    const enriched = [{ alertId: 10, attribution: { name: 'Dev1', date: '2024-06-09T00:00:00Z' } }];
+    const success = await api.updateCacheWithAttribution(keyBefore, enriched);
+    expect(success).toBe(true);
+
+    const entriesAfter = await api.getAllCacheEntries();
+    const updated = entriesAfter.find(e => e.key === keyBefore);
+    expect(updated.data.payload.value[0].attribution).toEqual({ name: 'Dev1', date: '2024-06-09T00:00:00Z' });
+    // Timestamps must not change
+    expect(updated.data.ts).toBe(tsBefore);
+    expect(updated.data.exp).toBe(expBefore);
+  });
+
+  test('does not write non-null attribution over null when re-fetching (stripByUrl preservation)', async () => {
+    const ALERT_URL2 =
+      'https://dev.azure.com/itbinus/proj/_apis/alert/repositories/repo-preserve/alerts?api-version=7.1-preview.1&%24top=100';
+
+    // First fetch — no attribution
+    baseFetchWithHeaders.mockResolvedValue({
+      data: { value: [{ alertId: 20, severity: 'critical', state: 'fixed', fixedDate: '2024-06-10T00:00:00Z' }] },
+      headers: { get: () => null },
+    });
+    await api.fetchDataWithHeaders(ALERT_URL2, 'pat-pres');
+
+    // Write attribution into cache
+    const entries = await api.getAllCacheEntries();
+    const key = entries.find(e => e.key.includes('repo-preserve'))?.key;
+    await api.updateCacheWithAttribution(key, [{ alertId: 20, attribution: { name: 'Dev2', date: '2024-06-09T00:00:00Z' } }]);
+
+    // Second fetch (re-fetch from network) — API returns finding with no attribution
+    baseFetchWithHeaders.mockResolvedValue({
+      data: { value: [{ alertId: 20, severity: 'critical', state: 'fixed', fixedDate: '2024-06-10T00:00:00Z' }] },
+      headers: { get: () => null },
+    });
+    // Force cache miss by advancing time past TTL
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.now() + TTL_MS * 1.5);
+    await api.fetchDataWithHeaders(ALERT_URL2, 'pat-pres');
+    jest.useRealTimers();
+
+    // Attribution must have been preserved from the pre-refetch cache
+    const entriesAfter = await api.getAllCacheEntries();
+    const after = entriesAfter.find(e => e.key.includes('repo-preserve'));
+    expect(after.data.payload.value[0].attribution).toEqual({ name: 'Dev2', date: '2024-06-09T00:00:00Z' });
+  });
+});

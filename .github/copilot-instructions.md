@@ -160,3 +160,31 @@ repoLink.href = `https://dev.azure.com/itbinus/${repo.projectName || projectId}/
 ### Cache TTL constant mismatch (tests only)
 
 `tests/cache.test.js` had `TTL_MS = 2 days` but `GHASResult.cache.js` uses `TTL_MS = 6 days`. The TTL-expiry test was silently passing with a wrong expectation. Fixed: test constant aligned to 6 days.
+
+### Attribution enrichment never written to cache — cache key mismatch (`GHASResult.html`)
+
+The enrichment block constructed the cache key from `alertUrl` (no query params):
+```js
+const cacheKey = 'ghas:' + new URL(alertUrl).toString() + '|u:' + hash(pat);
+```
+But `appendCache` / `makeBaseKey` stores findings under a key that **includes** `?api-version=7.2-preview.1&%24top=100` (from the URL passed to `fetchDataWithHeaders`). The keys never matched so `idbGet()` returned `null` and `updateCacheWithAttribution` returned `false` immediately, silently discarding every enrichment.
+
+Fixed by rebuilding the key with the same params `getGhasResult` uses:
+```js
+const cacheParams = new URLSearchParams({'api-version': '7.2-preview.1', '$top': String(top)});
+const canonicalUrl = new URL(`${alertUrl}?${cacheParams.toString()}`);
+canonicalUrl.searchParams.delete('continuationToken');
+const cacheKey = 'ghas:' + canonicalUrl.toString() + '|u:' + hash(String(currentPat || ''));
+```
+
+### `findClosestCommitter` matched commits after the fixedDate (`shared.js`)
+
+The original `Math.abs(target - t)` could attribute a finding to a commit that was pushed **after** the fix was detected (impossible causal relationship). Fixed to prefer the **latest commit whose date ≤ fixedDate**, falling back to the nearest future commit only when all commits post-date the fixedDate (e.g. clock skew or delayed scanning):
+```js
+// prefer latest commit <= fixedDate; fallback to nearest future commit
+```
+
+### `stripByUrl` overwrote cached attribution with `null` on re-fetch (`GHASResult.cache.js`)
+
+When findings were re-fetched from the network the attribution restoration loop wrote `finding.attribution = null` for any alertId found in the old cache even when that old entry had `attribution: null`. A previously computed non-null attribution would be overwritten with `null` if a re-fetch occurred between enrichment and the next read. Fixed to only restore non-null attributions (`if (cached != null)`).
+

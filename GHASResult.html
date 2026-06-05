@@ -277,6 +277,16 @@
         return { data, headers: response.headers };
     }
 
+    // Hash function (same as GHASResult.cache.js for key compatibility)
+    function hash(s) {
+        let h = 2166136261;
+        for (let i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+        }
+        return (h >>> 0).toString(36);
+    }
+
     // Hook container - functions are registered above as base implementations
     window.GHASResult = window.GHASResult || {};
     window.GHASResult.fetchData = fetchData;
@@ -462,6 +472,50 @@
             const fromCache = findings.fromCache === true;
             if(!fromCache){
                 await randomDelay(100, 600);
+            }
+
+            // ✅ ENRICH FINDINGS WITH ATTRIBUTION & STORE BACK TO CACHE
+            console.log('[GHASResult] Enriching', findings.value?.length || 0, 'findings with attribution...');
+            if (findings.value && findings.value.length > 0 && window.GHASShared?.enrichCacheWithAttribution) {
+                try {
+                    // Find project name for this repo
+                    const allrepoData = JSON.parse(allrepojson);
+                    const projectName = allrepoData.data.find(r => r.repoName === repoName)?.projectName || repoName;
+                    
+                    console.log('[GHASResult] Found project:', projectName);
+                    
+                    // Enrich findings with programmer attribution
+                    const enriched = await window.GHASShared.enrichCacheWithAttribution(
+                        findings.value,
+                        organization,
+                        projectName,
+                        repoName,
+                        currentPat
+                    );
+                    console.log('[GHASResult] ✓ Enriched', enriched.length, 'findings with attribution');
+                    
+                    // Store enriched findings back to IndexedDB
+                    if (window.GHASResult.updateCacheWithAttribution) {
+                        // Reconstruct the canonical cache key that appendCache (makeBaseKey) stored.
+                        // getGhasResult fetches with ?api-version=7.2-preview.1&$top=100 so the stored
+                        // key includes those params. alertUrl has none, so we must add them explicitly
+                        // before hashing — otherwise idbGet() returns null and the write is silently lost.
+                        const cacheParams = new URLSearchParams({'api-version': '7.2-preview.1', '$top': String(top)});
+                        const canonicalUrl = new URL(`${alertUrl}?${cacheParams.toString()}`);
+                        canonicalUrl.searchParams.delete('continuationToken');
+                        const cacheKey = 'ghas:' + canonicalUrl.toString() + '|u:' + hash(String(currentPat || ''));
+                        
+                        console.log('[GHASResult] Updating cache key:', cacheKey.substring(0, 60) + '...');
+                        const success = await window.GHASResult.updateCacheWithAttribution(cacheKey, enriched);
+                        console.log('[GHASResult] ✓ Updated cache with attribution:', success);
+                        
+                        // Update the findings value to show enriched data
+                        findings.value = enriched;
+                    }
+                } catch (enrichError) {
+                    console.warn('[GHASResult] Attribution enrichment failed (non-blocking):', enrichError.message);
+                    // Don't fail the whole load, just continue with unenriched data
+                }
             }
 
             const row = findingsCell.closest('tr');

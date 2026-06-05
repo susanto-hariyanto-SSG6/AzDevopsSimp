@@ -27,7 +27,11 @@
       const db = await openDB();
       return await new Promise((res, rej) => {
         const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
-        req.onsuccess = e => res(e.target.result?.v ?? null);
+        req.onsuccess = e => {
+          const result = e.target.result?.v ?? null;
+          if (result) console.log('[idbGet]', key.substring(0, 40), '...found, exp:', result.exp, 'now:', Date.now(), 'fresh:', Date.now() < (result.exp || Infinity));
+          res(result);
+        };
         req.onerror   = e => rej(e.target.error);
       });
     } catch { return null; }
@@ -105,20 +109,49 @@
         properties: r?.properties ? { tag: r.properties.tag, tags: r.properties.tags } : undefined
       })) : []
     })) : [];
-    return {
+    
+    const result = {
       alertId: f?.alertId, title: f?.title, severity: f?.severity,
       state: f?.state, alertType: f?.alertType,
       lastSeenDate: f?.lastSeenDate ?? null, fixedDate: f?.fixedDate ?? null,
-      physicalLocations: [location], tools
+      physicalLocations: [location], tools,
+      attribution: f?.attribution ?? null
     };
+     
+    return result;
   }
 
-  function stripByUrl(url, data) {
-    if (/_apis\/alert\/repositories\/.+\/alerts/i.test(url))
-      return { __compactCache: true, value: Array.isArray(data?.value) ? data.value.map(stripFinding) : [] };
-    if (/\/_apis\/projects(\?|$)/i.test(url))
+  async function stripByUrl(url, data, existingCached) {
+    if (/_apis\/alert\/repositories\/.+\/alerts/i.test(url)) {
+
+      const stripped = Array.isArray(data?.value) ? data.value.map(f => {
+        console.log('[stripByUrl] Stripping finding:', {
+          alertId: f?.alertId,
+          originalState: f?.state,
+          originalSeverity: f?.severity,
+          hasFixedDate: !!f?.fixedDate,
+          hasTools: Array.isArray(f?.tools)
+        });
+        return stripFinding(f);
+      }) : [];
+      
+      // Preserve non-null attribution from existing cache — don't overwrite with null,
+      // which would erase attribution that was previously computed and stored.
+      if (existingCached?.payload?.value && Array.isArray(existingCached.payload.value)) {
+        const attributionMap = new Map(existingCached.payload.value.map(f => [String(f?.alertId ?? ''), f?.attribution]));
+        for (const finding of stripped) {
+          const cached = attributionMap.get(String(finding.alertId ?? ''));
+          if (cached != null) finding.attribution = cached;
+        }
+      }
+      
+      const result = { __compactCache: true, value: stripped };
+      return result;
+    }
+    if (/\/_apis\/projects(\?|$)/i.test(url)) {
       return { __compactCache: true, value: Array.isArray(data?.value)
         ? data.value.map(p => ({ id: p?.id, name: p?.name, description: p?.description })) : [] };
+    }
     return { __compactCache: true, ...(data || {}) };
   }
 
@@ -129,12 +162,20 @@
       const hit  = await idbGet(key);
       const existing = (hit?.payload?.value && Array.isArray(hit.payload.value)) ? hit.payload.value : [];
       const seen = new Set(existing.map(f => String(f?.alertId ?? '')));
+      let addedCount = 0;
       for (const item of newItems) {
         const id = String(item?.alertId ?? '');
-        if (id && !seen.has(id)) { seen.add(id); existing.push(item); }
+        if (id && !seen.has(id)) { 
+          seen.add(id); 
+          existing.push(item); 
+          addedCount++;
+        }
       }
+      
       await idbSet(key, { ts: now, exp: now + randomTtl(), payload: { value: existing } });
-    } catch {}
+    } catch (e) {
+      console.error('[appendCache] Error:', e.message);
+    }
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -144,7 +185,8 @@
     if (fresh(hit)) return hit.payload;
     const full = await baseJson(url, pat);
     const now  = Date.now();
-    await idbSet(key, { ts: now, exp: now + randomTtl(), payload: stripByUrl(url, full) });
+    const stripped = await stripByUrl(url, full, hit);
+    await idbSet(key, { ts: now, exp: now + randomTtl(), payload: stripped });
     return full;
   };
 
@@ -154,13 +196,45 @@
 
     if (!isContinuation) {
       const hit = await idbGet(baseKey);
-      if (fresh(hit))
+      if (fresh(hit)) {
         return { data: { __compactCache: true, value: hit.payload?.value ?? [] }, headers: { get: () => null }, __fromCache: true };
+      }
     }
 
     const network = await baseJsonWithHeaders(url, pat);
-    await appendCache(baseKey, Array.isArray(stripByUrl(url, network.data)?.value) ? stripByUrl(url, network.data).value : []);
+    const existing = !isContinuation ? await idbGet(baseKey) : null;
+    const stripped = await stripByUrl(url, network.data, existing);
+    await appendCache(baseKey, Array.isArray(stripped?.value) ? stripped.value : []);
     return { data: network.data, headers: network.headers, __fromCache: false };
+  };
+
+  // Update cache findings with attribution data
+  window.GHASResult.updateCacheWithAttribution = async (key, enrichedFindings) => {
+    try {
+      const hit = await idbGet(key);
+      if (!hit) return false;
+      const payload = hit.payload || { value: [] };
+      
+      // Create attribution map from enriched findings
+      const attributionMap = new Map(enrichedFindings.map(f => [String(f?.alertId ?? ''), f?.attribution]));
+      
+      // Update existing cache entries with attribution
+      if (Array.isArray(payload.value)) {
+        for (const finding of payload.value) {
+          const id = String(finding?.alertId ?? '');
+          if (attributionMap.has(id)) {
+            finding.attribution = attributionMap.get(id);
+          }
+        }
+      }
+      
+      // CRITICAL: Preserve original timestamps (don't create new ts!)
+      await idbSet(key, { ts: hit.ts, exp: hit.exp, payload });
+      return true;
+    } catch (e) { 
+      console.error('[cache] updateCacheWithAttribution failed:', e);
+      return false; 
+    }
   };
 
   window.GHASResult.clearCache = async () => {
@@ -181,11 +255,34 @@
 
   // Used by GHASDashboard to scan all cached findings
   window.GHASResult.getAllCacheEntries = async () => {
-    const all = await idbGetAll();
-    return all
-      .filter(e => String(e.k).startsWith(KEY_PFX))
-      .map(e => ({ key: e.k, data: e.v }));
+    try {
+      const all = await idbGetAll();
+      const result = [];
+      
+      for (const entry of all) {
+        // Skip non-GHAS entries
+        if (!String(entry.k).startsWith(KEY_PFX)) continue;
+        
+        // Ensure entry.v exists
+        if (!entry.v) {
+          console.warn('[getAllCacheEntries] Skipping entry with no value:', entry.k);
+          continue;
+        }
+        
+        // Validate payload exists (don't filter by freshness here - let caller decide)
+        if (!entry.v?.payload) {
+          console.warn('[getAllCacheEntries] Skipping entry with no payload:', entry.k);
+          continue;
+        }
+        
+        result.push({ key: entry.k, data: entry.v });
+      }
+      
+      return result;
+    } catch (e) {
+      console.error('[getAllCacheEntries] Error:', e);
+      return [];
+    }
   };
 
-  console.log('[GHAS cache] enabled: IndexedDB (shared across tabs)');
 })();

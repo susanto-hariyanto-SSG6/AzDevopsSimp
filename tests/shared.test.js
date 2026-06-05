@@ -59,6 +59,36 @@ describe('findClosestCommitter', () => {
     expect(result.author.name).toBe('Close');
   });
 
+  test('prefers the latest commit BEFORE fixedDate over a closer commit AFTER it', () => {
+    // fixedDate = Jun 10. Jun 9 is 1 day before; Jun 11 is 1 day after.
+    // Must pick Jun 9 (last commit before the fix), not Jun 11.
+    const commits = [
+      makeCommit('2024-06-09T00:00:00Z', 'BeforeFix'),
+      makeCommit('2024-06-11T00:00:00Z', 'AfterFix'),
+    ];
+    const result = window.GHASShared.findClosestCommitter('2024-06-10T00:00:00Z', commits);
+    expect(result.author.name).toBe('BeforeFix');
+  });
+
+  test('picks latest of multiple commits before fixedDate', () => {
+    const commits = [
+      makeCommit('2024-06-01T00:00:00Z', 'OlderBefore'),
+      makeCommit('2024-06-08T00:00:00Z', 'LatestBefore'),
+      makeCommit('2024-06-15T00:00:00Z', 'After'),
+    ];
+    const result = window.GHASShared.findClosestCommitter('2024-06-10T00:00:00Z', commits);
+    expect(result.author.name).toBe('LatestBefore');
+  });
+
+  test('falls back to closest future commit when all commits post-date fixedDate', () => {
+    const commits = [
+      makeCommit('2024-06-15T00:00:00Z', 'FutureClose'),
+      makeCommit('2024-12-31T00:00:00Z', 'FutureFar'),
+    ];
+    const result = window.GHASShared.findClosestCommitter('2024-06-10T00:00:00Z', commits);
+    expect(result.author.name).toBe('FutureClose');
+  });
+
   test('falls back to committer.date when author.date is absent', () => {
     const commit = { committer: { name: 'Carol', date: '2024-06-01T00:00:00Z' } };
     const result = window.GHASShared.findClosestCommitter('2024-06-01T00:00:00Z', [commit]);

@@ -16,14 +16,23 @@
         if (!commits?.length || !fixedDate) return null;
         const target = new Date(fixedDate).getTime();
         if (isNaN(target)) return null;
-        let closest = null, minDiff = Infinity;
+
+        // Prefer the latest commit whose date is <= fixedDate (the commit that caused the fix).
+        // Fall back to the absolute-closest commit when all commits post-date the fixedDate
+        // (e.g. clock skew or delayed scanning).
+        let best = null, bestT = -Infinity;
+        let fallback = null, fallbackDiff = Infinity;
         for (const commit of commits) {
             const t = new Date(commit.author?.date || commit.committer?.date).getTime();
             if (isNaN(t)) continue;
-            const diff = Math.abs(target - t);
-            if (diff < minDiff) { minDiff = diff; closest = commit; }
+            if (t <= target) {
+                if (t > bestT) { bestT = t; best = commit; }
+            } else {
+                const diff = t - target;
+                if (diff < fallbackDiff) { fallbackDiff = diff; fallback = commit; }
+            }
         }
-        return closest;
+        return best ?? fallback;
     }
 
     /**
@@ -179,6 +188,56 @@
         return byCommitter;
     }
 
+    /**
+     * Attribute a single finding with programmer name and commit date.
+     * @param {object} finding  finding with fixedDate
+     * @param {Array}  commits  commit list from getCommitsForRepo
+     * @returns {{ name, date }|null}  attribution object or null
+     */
+    function attributeFinding(finding, commits) {
+      if (!finding || !finding.fixedDate || !commits?.length) return null;
+      const closest = findClosestCommitter(finding.fixedDate, commits);
+      if (!closest) return null;
+      return {
+        name: closest?.author?.name || closest?.committer?.name || 'Unknown',
+        date: closest?.author?.date || closest?.committer?.date || null
+      };
+    }
+
+    /**
+     * Enrich findings with attribution from commits (for cache pre-computation).
+     * Only attributes findings that don't already have attribution and are fixed/dismissed.
+     * @param {Array}  findings      array of findings (with fixedDate)
+     * @param {string} org           Azure DevOps organisation
+     * @param {string} projectName   ADO project name
+     * @param {string} repoName      repository name
+     * @param {string} pat           Personal Access Token
+     * @returns {Array}  enriched findings with attribution added
+     */
+    async function enrichCacheWithAttribution(findings, org, projectName, repoName, pat) {
+      if (!Array.isArray(findings) || findings.length === 0) return findings;
+      
+      try {
+        const { value: commits } = await getCommitsForRepo(org, projectName, repoName, pat);
+        if (!commits?.length) return findings; // No commits, return as-is
+        
+        for (const f of findings) {
+          // Only attribute if: no existing attribution, is fixed/dismissed, has fixedDate
+          if (!f.attribution) {
+            const state = String(f?.state || '').toLowerCase();
+            if ((state === 'fixed' || state === 'dismissed') && f.fixedDate) {
+              f.attribution = attributeFinding(f, commits);
+            }
+          }
+        }
+        
+        return findings;
+      } catch (e) {
+        console.warn('[shared.js] enrichCacheWithAttribution error:', e);
+        return findings; // Return as-is on error
+      }
+    }
+
     window.GHASShared = { findClosestCommitter, attributeFixedFindings, getCommitsForRepo,
-                          attributeFixedFindingsByWeek };
+                          attributeFixedFindingsByWeek, attributeFinding, enrichCacheWithAttribution };
 })();
