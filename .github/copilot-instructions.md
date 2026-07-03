@@ -49,13 +49,44 @@ Pages that use caching must register base fetch functions on `window.GHASResult`
 
 ### Cache layer (`GHASResult.cache.js`)
 
-- **TTL:** 2 days ± 20% jitter (`randomTtl()`) — avoids thundering herd on expiry
+- **TTL:** 6 days ± 20% jitter (`randomTtl()`) — avoids thundering herd on expiry
 - **IDB database:** `GHASCache`, object store `entries`, keyPath `k`
 - **Key format:** `ghas:<url>|u:<fnv1a-hash-of-pat>` — PAT is hashed, never stored raw
 - `makeBaseKey()` strips `continuationToken` so all pages of the same request share one IDB key
 - `appendCache()` merges paginated results, deduplicating by `alertId`
 - `fresh(entry)` checks `entry.exp` (absolute expiry) first, falls back to `entry.ts + TTL_MS`
 - Cached payloads have `__compactCache: true` and only store fields needed by the UI (`stripFinding()`)
+
+### Pipeline delta / last-load tracking (`GHASResult.cache.js`)
+
+Three new public functions enable "smart refresh" on `GHASDashboard`:
+
+| Function | Signature | Behaviour |
+|---|---|---|
+| `setLastFullLoad(ts)` | `(number) → void` | Stores epoch ms under IDB key `ghas:meta:lastFullLoad` |
+| `getLastFullLoad()` | `() → number\|null` | Returns stored epoch ms, or `null` |
+| `fetchPipelineDelta(org, project, pat, repoNames)` | `(...) → [{repo, definitionName, buildNumber, result, finishTime}]` | Calls `/_apis/build/builds?minTime=<lastFullLoad>` (live, no IDB cache), paginates 500/page, returns only repos that match `repoNames` after sanitise |
+
+**Key detail:** `fetchPipelineDelta` uses `baseJson` (the raw pre-wrap fetch), so pipeline API calls are never cached in IDB.  
+**Pipeline project constant:** `GHAS_PIPELINE_PROJECT = 'Github_Advanced_Security_Research'` in `GHASDashboard.html`.
+
+### Smart Load Live Data flow (`GHASDashboard.html`)
+
+`loadLiveData()` is now **smart**:
+
+- **First run** (no `lastFullLoad`): full load of all repos → sets `lastFullLoad` at end
+- **Subsequent runs** (has `lastFullLoad`): calls `runPipelineDeltaCheck()` instead — only refreshes repos whose pipeline ran after `lastFullLoad`, then updates `lastFullLoad`
+
+`runPipelineDeltaCheck(pat, setStatus)`:
+1. Calls `fetchPipelineDelta` to get changed repos
+2. For each: `clearCacheByPattern` + `getGhasResult` → updates `liveData`
+3. Populates `deltaBuilds` Map (sanitizedRepo → `{buildNumber, result, finishTime}`)
+4. Calls `render()` so badges appear
+
+**CI build badge** (shown in `fillRepoRow` for repos in `deltaBuilds`):
+- Rendered as `⎇ #<buildNumber>` before the refresh button
+- CSS class `.ci-build-tag.ci-succeeded` / `.ci-failed` / `.ci-partiallySucceeded`
+- `deltaBuilds` is a module-level `Map` — persists for the page session
 
 ### Alert states
 

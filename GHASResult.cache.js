@@ -285,4 +285,62 @@
     }
   };
 
+
+  // ── Pipeline delta / last-load timestamp ────────────────────────────────
+  const META_LAST_LOAD_KEY = 'ghas:meta:lastFullLoad';
+
+  window.GHASResult.setLastFullLoad = async (ts) => {
+    await idbSet(META_LAST_LOAD_KEY, { ts: Number(ts) });
+  };
+
+  window.GHASResult.getLastFullLoad = async () => {
+    const hit = await idbGet(META_LAST_LOAD_KEY);
+    return (hit && typeof hit.ts === 'number') ? hit.ts : null;
+  };
+
+  // Returns [{repo (sanitized), definitionName, buildNumber, result, finishTime}, ...]
+  // for repos in repoNames whose pipeline completed after the last full load.
+  // Always fetches live — bypasses IDB cache intentionally.
+  window.GHASResult.fetchPipelineDelta = async (org, project, pat, repoNames) => {
+    const lastLoad = await window.GHASResult.getLastFullLoad();
+    if (!lastLoad) return [];
+
+    const sanFn = n => String(n).replace(/[\s_@#$%^&*!]/g, '-').toLowerCase();
+    const repoSet = new Set(repoNames.map(sanFn));
+    const since = new Date(lastLoad).toISOString();
+    const allBuilds = [];
+    let skip = 0;
+    const top = 500;
+
+    while (true) {
+      const url = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds`
+        + `?api-version=7.1&$top=${top}&$skip=${skip}&minTime=${since}&statusFilter=completed&queryOrder=queueTimeDescending`;
+      const data = await baseJson(url, pat);
+      if (!Array.isArray(data?.value) || data.value.length === 0) break;
+      allBuilds.push(...data.value);
+      if (data.value.length < top) break;
+      skip += top;
+    }
+
+    // Keep the latest completed build per repo (matched against repoNames)
+    const byRepo = new Map();
+    for (const build of allBuilds) {
+      const defName = String(build?.definition?.name ?? '');
+      const key = sanFn(defName);
+      if (!repoSet.has(key)) continue;
+      const prev = byRepo.get(key);
+      const bTime = new Date(build.finishTime || 0);
+      if (!prev || bTime > new Date(prev.finishTime || 0)) {
+        byRepo.set(key, {
+          repo: key,
+          definitionName: defName,
+          buildNumber: String(build.buildNumber ?? ''),
+          result: String(build.result ?? ''),
+          finishTime: String(build.finishTime ?? '')
+        });
+      }
+    }
+    return Array.from(byRepo.values());
+  };
+
 })();

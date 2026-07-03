@@ -1,0 +1,1465 @@
+{
+  "count": 10,
+  "value": [
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337048"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337048"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337048/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337048/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/6661"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "fc29d52e-dc34-47c4-aa97-f78a99bc2efa"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "8344c1e69ee899c4a0d56ed2d94821680561d394",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "0f4d4fb8-03af-44d1-8eab-267526b0bf06"
+      },
+      "id": 337048,
+      "buildNumber": "20260702.1",
+      "status": "completed",
+      "result": "failed",
+      "queueTime": "2026-07-02T15:05:52.6513791Z",
+      "startTime": "2026-07-02T15:06:09.0193361Z",
+      "finishTime": "2026-07-02T15:13:20.9861875Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337048",
+      "definition": {
+        "drafts": [],
+        "id": 6661,
+        "name": "SSG1-C1-AdmisiOnlineBackendv3",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/6661?revision=1",
+        "uri": "vstfs:///Build/Definition/6661",
+        "path": "\\SSG1-C1-AdmisiOnlineBackendv3",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 1,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337048",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "8344c1e69ee899c4a0d56ed2d94821680561d394",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T15:13:21.15Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "fc29d52e-dc34-47c4-aa97-f78a99bc2efa"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337048/logs"
+      },
+      "repository": {
+        "id": "0f4d4fb8-03af-44d1-8eab-267526b0bf06",
+        "type": "TfsGit",
+        "name": "SSG1-C1-AdmisiOnlineBackendv3",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/SSG1-C1-AdmisiOnlineBackendv3",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337043"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337043"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337043/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337043/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/7156"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "2b5035c4-2bb4-499a-b786-29ca9ea3fe6a"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "d1485c25ed50d0d0317c0146e098c94fe53f2374",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "aabe2786-cb99-43a2-9b61-5905cdc51746"
+      },
+      "id": 337043,
+      "buildNumber": "20260702.6",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T14:28:26.7768709Z",
+      "startTime": "2026-07-02T14:28:48.0930646Z",
+      "finishTime": "2026-07-02T14:34:07.1666059Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337043",
+      "definition": {
+        "drafts": [],
+        "id": 7156,
+        "name": "SSG1-C1-QRIS-SNAP",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/7156?revision=1",
+        "uri": "vstfs:///Build/Definition/7156",
+        "path": "\\SSG1-C1-QRIS-SNAP",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 6,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337043",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "d1485c25ed50d0d0317c0146e098c94fe53f2374",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T14:34:07.39Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "2b5035c4-2bb4-499a-b786-29ca9ea3fe6a"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337043/logs"
+      },
+      "repository": {
+        "id": "aabe2786-cb99-43a2-9b61-5905cdc51746",
+        "type": "TfsGit",
+        "name": "SSG1-C1-QRIS-SNAP",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/SSG1-C1-QRIS-SNAP",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337040"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337040"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337040/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337040/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/7156"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "34b8a81f-74b2-4d23-8f5a-1eb0dce97938"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "c8403d79eee84f32d24698d3078844cee19d40df",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "aabe2786-cb99-43a2-9b61-5905cdc51746"
+      },
+      "id": 337040,
+      "buildNumber": "20260702.5",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T13:34:54.0449586Z",
+      "startTime": "2026-07-02T13:41:27.7957512Z",
+      "finishTime": "2026-07-02T13:46:48.1172127Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337040",
+      "definition": {
+        "drafts": [],
+        "id": 7156,
+        "name": "SSG1-C1-QRIS-SNAP",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/7156?revision=1",
+        "uri": "vstfs:///Build/Definition/7156",
+        "path": "\\SSG1-C1-QRIS-SNAP",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 5,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337040",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "c8403d79eee84f32d24698d3078844cee19d40df",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T13:46:48.367Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "34b8a81f-74b2-4d23-8f5a-1eb0dce97938"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337040/logs"
+      },
+      "repository": {
+        "id": "aabe2786-cb99-43a2-9b61-5905cdc51746",
+        "type": "TfsGit",
+        "name": "SSG1-C1-QRIS-SNAP",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/SSG1-C1-QRIS-SNAP",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337037"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337037"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337037/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337037/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/6619"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "1941701b-8caa-428c-a752-3dbc91485273"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "ea9fdc4f5b9cd582fd4be4c4911b051370b77b74",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "34c1e3b0-2a83-462a-be3d-1c5d35fead0e"
+      },
+      "id": 337037,
+      "buildNumber": "20260702.3",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T13:08:03.9027645Z",
+      "startTime": "2026-07-02T13:20:34.1063529Z",
+      "finishTime": "2026-07-02T13:24:48.3440777Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337037",
+      "definition": {
+        "drafts": [],
+        "id": 6619,
+        "name": "ITAT-Devbees-Web-Dev",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/6619?revision=1",
+        "uri": "vstfs:///Build/Definition/6619",
+        "path": "\\ITAT-Devbees-Web-Dev",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 3,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337037",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "ea9fdc4f5b9cd582fd4be4c4911b051370b77b74",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T13:24:48.557Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "1941701b-8caa-428c-a752-3dbc91485273"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337037/logs"
+      },
+      "repository": {
+        "id": "34c1e3b0-2a83-462a-be3d-1c5d35fead0e",
+        "type": "TfsGit",
+        "name": "ITAT-Devbees-Web-Dev",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/ITAT-Devbees-Web-Dev",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337032"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337032"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337032/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337032/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/7156"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "1288f707-1f0a-4c70-8b37-cb7516aa9938"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "214afa154aa6f7fb565cd131eda1fb766d68ed7c",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "aabe2786-cb99-43a2-9b61-5905cdc51746"
+      },
+      "id": 337032,
+      "buildNumber": "20260702.4",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T13:02:56.4693368Z",
+      "startTime": "2026-07-02T13:11:38.4811041Z",
+      "finishTime": "2026-07-02T13:17:34.3998832Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337032",
+      "definition": {
+        "drafts": [],
+        "id": 7156,
+        "name": "SSG1-C1-QRIS-SNAP",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/7156?revision=1",
+        "uri": "vstfs:///Build/Definition/7156",
+        "path": "\\SSG1-C1-QRIS-SNAP",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 4,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337032",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "214afa154aa6f7fb565cd131eda1fb766d68ed7c",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T13:17:34.587Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "1288f707-1f0a-4c70-8b37-cb7516aa9938"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337032/logs"
+      },
+      "repository": {
+        "id": "aabe2786-cb99-43a2-9b61-5905cdc51746",
+        "type": "TfsGit",
+        "name": "SSG1-C1-QRIS-SNAP",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/SSG1-C1-QRIS-SNAP",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337031"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337031"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337031/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337031/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/6619"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "90836d0a-9734-405b-9c1c-47c773fa067d"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "07408b878d4823f663ce13a1dded0916b9e3acd4",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "34c1e3b0-2a83-462a-be3d-1c5d35fead0e"
+      },
+      "id": 337031,
+      "buildNumber": "20260702.2",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T13:02:32.8558721Z",
+      "startTime": "2026-07-02T13:08:56.3832074Z",
+      "finishTime": "2026-07-02T13:13:35.4245928Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337031",
+      "definition": {
+        "drafts": [],
+        "id": 6619,
+        "name": "ITAT-Devbees-Web-Dev",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/6619?revision=1",
+        "uri": "vstfs:///Build/Definition/6619",
+        "path": "\\ITAT-Devbees-Web-Dev",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 2,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337031",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "07408b878d4823f663ce13a1dded0916b9e3acd4",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T13:13:35.607Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "90836d0a-9734-405b-9c1c-47c773fa067d"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337031/logs"
+      },
+      "repository": {
+        "id": "34c1e3b0-2a83-462a-be3d-1c5d35fead0e",
+        "type": "TfsGit",
+        "name": "ITAT-Devbees-Web-Dev",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/ITAT-Devbees-Web-Dev",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337026"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337026"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337026/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337026/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/7290"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "9f91b955-569a-4624-8dd4-58897e1f162b"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "ef147e1ed0781d40e947edafaebd995746b39262",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "020ba66f-7a45-41dc-9520-b7997e04800a"
+      },
+      "id": 337026,
+      "buildNumber": "20260702.11",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T12:54:23.5200518Z",
+      "startTime": "2026-07-02T13:00:58.2095644Z",
+      "finishTime": "2026-07-02T13:05:50.8009291Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337026",
+      "definition": {
+        "drafts": [],
+        "id": 7290,
+        "name": "SSG3-C1-ThesisWebApp",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/7290?revision=1",
+        "uri": "vstfs:///Build/Definition/7290",
+        "path": "\\SSG3-C1-ThesisWebApp",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 11,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337026",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "ef147e1ed0781d40e947edafaebd995746b39262",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T13:05:50.99Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "9f91b955-569a-4624-8dd4-58897e1f162b"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337026/logs"
+      },
+      "repository": {
+        "id": "020ba66f-7a45-41dc-9520-b7997e04800a",
+        "type": "TfsGit",
+        "name": "SSG3-C1-ThesisWebApp",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/SSG3-C1-ThesisWebApp",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337018"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337018"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337018/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337018/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/7290"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "26017098-78f8-4dda-83c1-9fb0d236a24d"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "d0493a7c4c7877133d38832260754bb2145e1d48",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "020ba66f-7a45-41dc-9520-b7997e04800a"
+      },
+      "id": 337018,
+      "buildNumber": "20260702.10",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T12:26:34.9868042Z",
+      "startTime": "2026-07-02T12:32:25.91218Z",
+      "finishTime": "2026-07-02T12:36:51.5264465Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337018",
+      "definition": {
+        "drafts": [],
+        "id": 7290,
+        "name": "SSG3-C1-ThesisWebApp",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/7290?revision=1",
+        "uri": "vstfs:///Build/Definition/7290",
+        "path": "\\SSG3-C1-ThesisWebApp",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 10,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337018",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "d0493a7c4c7877133d38832260754bb2145e1d48",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T12:36:51.703Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "26017098-78f8-4dda-83c1-9fb0d236a24d"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337018/logs"
+      },
+      "repository": {
+        "id": "020ba66f-7a45-41dc-9520-b7997e04800a",
+        "type": "TfsGit",
+        "name": "SSG3-C1-ThesisWebApp",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/SSG3-C1-ThesisWebApp",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337010"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=337010"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337010/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337010/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/7290"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "04937a27-9ed9-4443-a45c-4da5cf20e7d2"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "445ca312c8ed490fc877130b7a77224b8b7f659b",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "020ba66f-7a45-41dc-9520-b7997e04800a"
+      },
+      "id": 337010,
+      "buildNumber": "20260702.9",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T11:51:37.8806517Z",
+      "startTime": "2026-07-02T12:09:42.6991594Z",
+      "finishTime": "2026-07-02T12:14:34.6238722Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/337010",
+      "definition": {
+        "drafts": [],
+        "id": 7290,
+        "name": "SSG3-C1-ThesisWebApp",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/7290?revision=1",
+        "uri": "vstfs:///Build/Definition/7290",
+        "path": "\\SSG3-C1-ThesisWebApp",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 9,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/337010",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "445ca312c8ed490fc877130b7a77224b8b7f659b",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T12:14:34.83Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "04937a27-9ed9-4443-a45c-4da5cf20e7d2"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/337010/logs"
+      },
+      "repository": {
+        "id": "020ba66f-7a45-41dc-9520-b7997e04800a",
+        "type": "TfsGit",
+        "name": "SSG3-C1-ThesisWebApp",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/SSG3-C1-ThesisWebApp",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    },
+    {
+      "_links": {
+        "self": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/336996"
+        },
+        "web": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_build/results?buildId=336996"
+        },
+        "sourceVersionDisplayUri": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/336996/sources"
+        },
+        "timeline": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/336996/Timeline"
+        },
+        "badge": {
+          "href": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/status/7101"
+        }
+      },
+      "properties": {},
+      "tags": [],
+      "validationResults": [],
+      "plans": [
+        {
+          "planId": "24667c1b-9bf9-42e7-a4ee-7a101231e5f0"
+        }
+      ],
+      "triggerInfo": {
+        "ci.sourceBranch": "refs/heads/master",
+        "ci.sourceSha": "21d89d029aab32be19affe337fc898a9e34a74f2",
+        "ci.message": "Initial commit skip-secret-scanning:true",
+        "ci.triggerRepository": "a7d3dc44-4e11-46f7-ba27-253938bae1ae"
+      },
+      "id": 336996,
+      "buildNumber": "20260702.1",
+      "status": "completed",
+      "result": "succeeded",
+      "queueTime": "2026-07-02T11:28:21.9656023Z",
+      "startTime": "2026-07-02T12:00:35.3613865Z",
+      "finishTime": "2026-07-02T12:10:07.1330232Z",
+      "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Builds/336996",
+      "definition": {
+        "drafts": [],
+        "id": 7101,
+        "name": "SSG3-C5-BinusOnlineAPI",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/Definitions/7101?revision=1",
+        "uri": "vstfs:///Build/Definition/7101",
+        "path": "\\SSG3-C5-BinusOnlineAPI",
+        "type": "build",
+        "queueStatus": "enabled",
+        "revision": 1,
+        "project": {
+          "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "name": "Github_Advanced_Security_Research",
+          "description": "Keperluan Project GH Advanced Security",
+          "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+          "state": "wellFormed",
+          "revision": 3127,
+          "visibility": "private",
+          "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+        }
+      },
+      "buildNumberRevision": 1,
+      "project": {
+        "id": "1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "name": "Github_Advanced_Security_Research",
+        "description": "Keperluan Project GH Advanced Security",
+        "url": "https://dev.azure.com/itbinus/_apis/projects/1f663eb2-dd63-4b51-b000-f0949e3c8ab0",
+        "state": "wellFormed",
+        "revision": 3127,
+        "visibility": "private",
+        "lastUpdateTime": "2026-05-12T04:51:29.99Z"
+      },
+      "uri": "vstfs:///Build/Build/336996",
+      "sourceBranch": "refs/heads/master",
+      "sourceVersion": "21d89d029aab32be19affe337fc898a9e34a74f2",
+      "queue": {
+        "id": 2825,
+        "name": "Azure Pipelines",
+        "pool": {
+          "id": 13,
+          "name": "Azure Pipelines",
+          "isHosted": true
+        }
+      },
+      "priority": "normal",
+      "reason": "individualCI",
+      "requestedFor": {
+        "displayName": "Github Advanced Security User",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+          }
+        },
+        "id": "ce3711c9-ca7a-6724-9d81-9325e2bb1539",
+        "uniqueName": "ghas-user@binus.edu",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5",
+        "descriptor": "aad.Y2UzNzExYzktY2E3YS03NzI0LTlkODEtOTMyNWUyYmIxNTM5"
+      },
+      "requestedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "lastChangedDate": "2026-07-02T12:10:07.377Z",
+      "lastChangedBy": {
+        "displayName": "Microsoft.VisualStudio.Services.TFS",
+        "url": "https://spsprodeau1.vssps.visualstudio.com/A40cebe15-73b9-42a1-82b3-b5bb82589f19/_apis/Identities/00000002-0000-8888-8000-000000000000",
+        "_links": {
+          "avatar": {
+            "href": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+          }
+        },
+        "id": "00000002-0000-8888-8000-000000000000",
+        "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+        "imageUrl": "https://dev.azure.com/itbinus/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+        "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA"
+      },
+      "orchestrationPlan": {
+        "planId": "24667c1b-9bf9-42e7-a4ee-7a101231e5f0"
+      },
+      "logs": {
+        "id": 0,
+        "type": "Container",
+        "url": "https://dev.azure.com/itbinus/1f663eb2-dd63-4b51-b000-f0949e3c8ab0/_apis/build/builds/336996/logs"
+      },
+      "repository": {
+        "id": "a7d3dc44-4e11-46f7-ba27-253938bae1ae",
+        "type": "TfsGit",
+        "name": "SSG3-C5-BinusOnlineAPI",
+        "url": "https://dev.azure.com/itbinus/Github_Advanced_Security_Research/_git/SSG3-C5-BinusOnlineAPI",
+        "clean": null,
+        "checkoutSubmodules": false
+      },
+      "retainedByRelease": false,
+      "triggeredByBuild": null,
+      "appendCommitMessageToRunName": true
+    }
+  ]
+}

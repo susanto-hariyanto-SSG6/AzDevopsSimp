@@ -93,6 +93,10 @@
         .stale-badge { font-size: 9px; background: #aaa; color: #fff; padding: 1px 5px; border-radius: 8px; margin-left: 4px; vertical-align: middle; }
         .repo-refresh-btn { font-size: 10px; padding: 1px 5px; margin-left: 5px; border: 1px solid #b0c4de; border-radius: 3px; background: #eaf3ff; color: #2471a3; cursor: pointer; vertical-align: middle; }
         .repo-refresh-btn:disabled { color: #aaa; cursor: default; background: #f5f5f5; border-color: #ddd; }
+        .ci-build-tag { display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; background: #0d1117; color: #7ec8f7; border: 1px solid #30363d; margin: 0 2px 0 3px; font-family: monospace; vertical-align: middle; cursor: default; }
+        .ci-build-tag.ci-succeeded { background: #0d2818; color: #3fb950; border-color: #238636; }
+        .ci-build-tag.ci-failed { background: #2d0c0c; color: #f85149; border-color: #8b0000; }
+        .ci-build-tag.ci-partiallySucceeded { background: #2b1d00; color: #d29922; border-color: #9e6a03; }
 
         .hidden { display: none; }
 
@@ -175,6 +179,7 @@
 <script>
     const organization = 'itbinus';
     const GHAS_PROJECT_ID = '1f663eb2-dd63-4b51-b000-f0949e3c8ab0';
+    const GHAS_PIPELINE_PROJECT = 'Github_Advanced_Security_Research';
 
     // FNV-1a hash for PAT obfuscation (same as GHASResult.html)
     function hash(s) {
@@ -224,6 +229,7 @@
 
     let clusterMap = [];   // from GHASCluster.json
     let liveData = {};     // sanitized repoName -> { critical, high, medium, low, totalActive, fixedCritical, fixedHigh, fixedMedium, fixedLow, totalFixed, fromCache }
+    const deltaBuilds = new Map(); // sanitized repoName → { buildNumber, result, finishTime } — populated by pipeline delta check
     const sanitize = n => String(n).replace(/[\s_@#$%^&*!]/g, '-');
 
     // loadFromCache is called in init() AFTER cache.js loads, so getAllCacheEntries is available
@@ -570,6 +576,18 @@
                 badge.className = 'live-badge'; badge.textContent = '🌐';
             }
             td0.appendChild(badge);
+
+            // CI pipeline delta badge — shown for repos refreshed in this session's delta check
+            const delta = deltaBuilds.get(key);
+            if (delta) {
+                const resultCls = { succeeded: 'ci-succeeded', failed: 'ci-failed', partiallySucceeded: 'ci-partiallySucceeded' }[delta.result] || '';
+                const tag = document.createElement('span');
+                tag.className = `ci-build-tag ${resultCls}`;
+                const finishStr = delta.finishTime ? new Date(delta.finishTime).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+                tag.title = `CI ${delta.result}${finishStr ? ' · ' + finishStr : ''}`;
+                tag.textContent = `⎇ #${delta.buildNumber}`;
+                td0.appendChild(tag);
+            }
 
             const btn = document.createElement('button');
             btn.className = 'repo-refresh-btn';
@@ -939,6 +957,80 @@
         return { value: allFindings, fromCache };
     }
 
+    // ── Pipeline delta check ──────────────────────────────────────────────────
+    // Called instead of a full loadLiveData when a prior full-load timestamp exists.
+    // Fetches only repos whose CI pipeline ran after the last full load, clears
+    // their cache, re-fetches GHAS alerts, and stamps them with a CI build badge.
+    async function runPipelineDeltaCheck(pat, setStatus) {
+        const lastLoad = await window.GHASResult.getLastFullLoad();
+        if (!lastLoad) return false;
+
+        const lastLoadStr = new Date(lastLoad).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        setStatus(`🔄 Checking pipeline activity since ${lastLoadStr}…`);
+
+        const allRepos = (window.__clusters || [])
+            .flatMap(cl => cl._projects)
+            .flatMap(p => p.repos);
+        const uniqueRepos = [...new Set(allRepos.map(r => sanitize(r)))];
+
+        let changed;
+        try {
+            changed = await window.GHASResult.fetchPipelineDelta(organization, GHAS_PIPELINE_PROJECT, pat, uniqueRepos);
+        } catch (e) {
+            console.warn('[Delta] fetchPipelineDelta failed:', e);
+            throw e;
+        }
+
+        if (changed.length === 0) {
+            setStatus(`✅ No pipeline activity since ${lastLoadStr} — all data current`, '#8f8');
+            return true;
+        }
+
+        let done = 0, errors = 0;
+        for (const item of changed) {
+            setStatus(`🔄 [${++done}/${changed.length}] Refreshing ${item.definitionName}…`);
+
+            // Record the CI build info so fillRepoRow can render the badge
+            deltaBuilds.set(item.repo, {
+                buildNumber: item.buildNumber,
+                result: item.result,
+                finishTime: item.finishTime
+            });
+
+            // Expire old cache entry and pull fresh GHAS alerts
+            await window.GHASResult.clearCacheByPattern(item.repo);
+            try {
+                const result = await getGhasResult(GHAS_PROJECT_ID, pat, item.repo);
+                const findings = result.value || [];
+                const act = { critical: 0, high: 0, medium: 0, low: 0 };
+                const fix = { critical: 0, high: 0, medium: 0, low: 0 };
+                for (const f of findings) {
+                    const s = String(f?.severity || '').toLowerCase();
+                    if (isResolved(f)) { if (fix[s] !== undefined) fix[s]++; }
+                    else               { if (act[s] !== undefined) act[s]++; }
+                }
+                liveData[item.repo] = {
+                    critical: act.critical, high: act.high, medium: act.medium, low: act.low,
+                    totalActive: act.critical + act.high + act.medium + act.low,
+                    fixedCritical: fix.critical, fixedHigh: fix.high, fixedMedium: fix.medium, fixedLow: fix.low,
+                    totalFixed: fix.critical + fix.high + fix.medium + fix.low,
+                    fromCache: false
+                };
+            } catch (e) {
+                errors++;
+                console.warn('[Delta] Failed to refresh GHAS for', item.repo, e);
+            }
+        }
+
+        // Re-render everything so badges and updated counts appear
+        window.__clusters = window.__clusters.map(cl => ({ ...cl, _totals: clusterTotals(cl._projects) }));
+        render(window.__clusters);
+
+        const suffix = errors > 0 ? ` · ❌ ${errors} err` : '';
+        setStatus(`✅ ${changed.length} repos refreshed via CI delta since ${lastLoadStr}${suffix}`, '#8f8');
+        return true;
+    }
+
     async function loadLiveData() {
         const pat = document.getElementById('patInput').value.trim();
         if (!pat) { alert('Please enter a PAT first.'); return; }
@@ -947,6 +1039,26 @@
         const status = document.getElementById('liveStatus');
         btn.disabled = true;
 
+        function setStatus(text, color) {
+            status.style.color = color || '#adf';
+            status.textContent = text;
+        }
+
+        // ── Delta path: re-use last full load, only refresh CI-changed repos ──
+        const lastLoad = await window.GHASResult.getLastFullLoad();
+        if (lastLoad) {
+            try {
+                await runPipelineDeltaCheck(pat, setStatus);
+                await window.GHASResult.setLastFullLoad(Date.now());
+            } catch (e) {
+                console.warn('[Dashboard] Delta check failed:', e);
+                setStatus(`⚠ Delta check failed: ${e.message} — run a full load to reset`, '#f39c12');
+            }
+            btn.disabled = false;
+            return;
+        }
+
+        // ── Full load path (first time / no lastLoad stored) ─────────────────
         const allRepos = (window.__clusters || [])
             .flatMap(cl => cl._projects)
             .flatMap(p => p.repos.map(r => ({ repoName: r, sanitized: sanitize(r) })));
@@ -956,12 +1068,7 @@
         const total = uniqueRepos.length;
         let done = 0, cacheHits = 0, errors = 0;
 
-        function setStatus(text, color) {
-            status.style.color = color || '#adf';
-            status.textContent = text;
-        }
-
-        setStatus(`⏳ Starting… 0 / ${total} repos`);
+        setStatus(`⏳ Starting full load… 0 / ${total} repos`);
 
         for (const repo of uniqueRepos) {
             const sanitized = repo.sanitized;
@@ -1021,11 +1128,15 @@
             
             // Re-render the fixing activity chart with fresh data
             await loadFixingActivityFragment();
-            
-            setStatus(`✅ Live data + Attribution loaded + Chart refreshed`, '#8f8');
+
+            await window.GHASResult.setLastFullLoad(Date.now());
+            const loadedAt = new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+            setStatus(`✅ Live data + Attribution loaded + Chart refreshed · loaded at ${loadedAt}`, '#8f8');
         } catch (e) {
             console.warn('[Dashboard] Attribution enrichment failed:', e.message);
-            setStatus(`✅ Live data loaded (attribution failed)`, '#f39c12');
+            await window.GHASResult.setLastFullLoad(Date.now());
+            const loadedAt = new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+            setStatus(`✅ Live data loaded (attribution failed) · loaded at ${loadedAt}`, '#f39c12');
         }
     }
 
@@ -1366,7 +1477,9 @@
 
         const st = document.getElementById('liveStatus');
         if (cachedCount > 0) {
-            st.textContent = `📦 Auto-loaded ${cachedCount} repos from cache`;
+            const lastLoad = await window.GHASResult.getLastFullLoad();
+            const timeStr = lastLoad ? new Date(lastLoad).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+            st.textContent = `📦 Auto-loaded ${cachedCount} repos from cache${timeStr ? ' · last full load: ' + timeStr : ''}`;
             st.style.color = '#adf';
             
             // Auto-load programmer attribution if cache has enriched data
