@@ -132,10 +132,6 @@
           ]
         },
         {
-          "name": "SSG5-C1-Dashboard_BINUS_Square",
-          "repos": "SSG5-C1-Dashboard_BINUS_Square"
-        },
-        {
           "name": "SSG5-C1-GA_Data_Hub",
           "repos": [
             "SSG5-C1-GA_Data_Hub",
