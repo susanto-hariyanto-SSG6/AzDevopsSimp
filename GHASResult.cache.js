@@ -314,7 +314,7 @@
 
     while (true) {
       const url = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds`
-        + `?api-version=7.1&$top=${top}&$skip=${skip}&minTime=${since}&statusFilter=completed&queryOrder=queueTimeDescending`;
+        + `?api-version=7.1&$top=${top}&$skip=${skip}&minTime=${since}&statusFilter=completed&queryOrder=finishTimeDescending`;
       const data = await baseJson(url, pat);
       if (!Array.isArray(data?.value) || data.value.length === 0) break;
       allBuilds.push(...data.value);

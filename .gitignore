@@ -1,3 +1,5 @@
 node_modules/*
 package-lock.json
 *.md
+tests/serve_https.py
+*.pem
