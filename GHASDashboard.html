@@ -1021,6 +1021,10 @@
                 console.warn('[Delta] Failed to refresh GHAS for', item.repo, e);
             }
         }
+        if(changed.length > 0) {
+            await autoLoadAttribution(window.__clusters);
+            await loadFixingActivityFragment();
+        }
 
         // Re-render everything so badges and updated counts appear
         window.__clusters = window.__clusters.map(cl => ({ ...cl, _totals: clusterTotals(cl._projects) }));
