@@ -65,7 +65,7 @@
    * @returns {Object} { clusterName -> [findings] }
    */
   function groupFindingsByCluster(fixedFindings, clusterConfig) {
-   const sanitize = n => String(n).replace(/[\s_@#$%^&*!]/g, '-');
+   const sanitize = n => String(n).replace(/[\s_@#$%^&*!]/g, '-').toLowerCase();
    const byCluster = {};
     
    // Build a map of repo -> cluster name for faster lookup
