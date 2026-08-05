@@ -15,6 +15,51 @@
   window.FixingActivity = window.FixingActivity || {};
 
   /**
+   * Parse ALL findings from cache entries (active, fixed, and dismissed) with programmer
+   * attribution where available. Used for the full findings export (not just fixed ones).
+   * @param {Array} cacheEntries - from window.GHASResult.getAllCacheEntries()
+   * @returns {Promise<Array>} Array of { fixId, fixedDate, lastSeenDate, status, programmer, ... }
+   */
+  async function getAllFindingsWithProgrammers(cacheEntries) {
+   try {
+     const all = [];
+
+     for (const entry of cacheEntries) {
+       if (!entry.data?.payload?.value) continue;
+
+       const key = entry.key || '';
+       const urlMatch = key.match(/\/repositories\/([^/]+)\//);
+       const repoName = urlMatch ? urlMatch[1] : 'unknown';
+
+       const findings = entry.data.payload.value;
+       for (const f of findings) {
+         const state = String(f?.state || '').toLowerCase();
+         const { cve, cwe } = extractCveCwe(f);
+
+         all.push({
+           fixId: f?.alertId || 'unknown',
+           fixedDate: f?.fixedDate || null,
+           lastSeenDate: f?.lastSeenDate || null,
+           title: f?.title || 'Unknown',
+           severity: f?.severity || 'unknown',
+           alertType: f?.alertType || 'unknown',
+           status: state || 'unknown',
+           cve, cwe,
+           programmer: f?.attribution?.name || null,
+           attribution: f?.attribution || null,
+           repoName: repoName
+         });
+       }
+     }
+
+     return all;
+   } catch (e) {
+     console.error('[FixingActivity] Error:', e);
+     return [];
+   }
+  }
+
+  /**
    * Parse findings from cache entries and extract fixed findings with programmer info
    * @param {Array} cacheEntries - from window.GHASResult.getAllCacheEntries()
    * @returns {Promise<Array>} Array of { fixId, fixedDate, programmer, severity, title, alertType }
@@ -39,13 +84,19 @@
          const fixedDate = f?.fixedDate;
          if (!fixedDate) continue;
           
+         const { cve, cwe } = extractCveCwe(f);
+          
          fixed.push({
            fixId: f?.alertId || 'unknown',
            fixedDate: fixedDate,
+           lastSeenDate: f?.lastSeenDate || null,
            title: f?.title || 'Unknown',
            severity: f?.severity || 'unknown',
            alertType: f?.alertType || 'unknown',
+           status: state,
+           cve, cwe,
            programmer: f?.attribution?.name || 'Unknown',
+           attribution: f?.attribution || null,
            repoName: repoName
          });
        }
@@ -56,6 +107,139 @@
      console.error('[FixingActivity] Error:', e);
      return [];
    }
+  }
+
+  /**
+   * Extract CVE/CWE identifiers from a raw finding's tool rule tags.
+   * @param {Object} finding - raw finding (with tools[].rules[].tag/tags)
+   * @returns {{cve: string[], cwe: string[]}}
+   */
+  function extractCveCwe(finding) {
+    const cve = [];
+    const cwe = [];
+    const seenCve = new Set();
+    const seenCwe = new Set();
+    const rawTags = [];
+
+    const pushTags = (v) => {
+      if (!v) return;
+      if (Array.isArray(v)) rawTags.push(...v);
+      else rawTags.push(v);
+    };
+
+    if (Array.isArray(finding?.tools)) {
+      for (const tool of finding.tools) {
+        if (!Array.isArray(tool?.rules)) continue;
+        for (const rule of tool.rules) {
+          pushTags(rule?.tag);
+          pushTags(rule?.tags);
+          pushTags(rule?.properties?.tag);
+          pushTags(rule?.properties?.tags);
+        }
+      }
+    }
+    pushTags(finding?.tags);
+    pushTags(finding?.properties?.tags);
+
+    for (const t of rawTags) {
+      const text = typeof t === 'string' ? t : (t?.name || t?.id || t?.value || '');
+      if (!text) continue;
+      const up = text.toUpperCase();
+
+      const cveMatches = up.match(/CVE[-_:\s]?(\d{4})[-_:\s]?(\d{4,7})/g) || [];
+      const cweMatches = up.match(/CWE[-_:\s]?(\d{1,5})/g) || [];
+
+      for (const m of cveMatches) {
+        const n = m.match(/(\d{4}).*?(\d{4,7})/);
+        if (!n) continue;
+        const id = `CVE-${n[1]}-${n[2]}`;
+        if (!seenCve.has(id)) { seenCve.add(id); cve.push(id); }
+      }
+      for (const m of cweMatches) {
+        const n = m.match(/(\d{1,5})/);
+        if (!n) continue;
+        const id = `CWE-${n[1]}`;
+        if (!seenCwe.has(id)) { seenCwe.add(id); cwe.push(id); }
+      }
+    }
+
+    return { cve, cwe };
+  }
+
+  /**
+   * Filter findings to those within [startDate, endDate] (inclusive), matched against
+   * fixedDate when present, otherwise falling back to lastSeenDate (for active findings
+   * that have no fixedDate). Dates are 'YYYY-MM-DD' strings; either bound may be omitted.
+   * @param {Array} findings - array with fixedDate and/or lastSeenDate
+   * @param {string|null} startDate
+   * @param {string|null} endDate
+   * @returns {Array} filtered findings
+   */
+  function filterByDateRange(findings, startDate, endDate) {
+    if (!startDate && !endDate) return findings;
+    const start = startDate ? new Date(startDate + 'T00:00:00Z').getTime() : -Infinity;
+    const end = endDate ? new Date(endDate + 'T23:59:59Z').getTime() : Infinity;
+    return findings.filter(f => {
+      const t = new Date(f.fixedDate || f.lastSeenDate).getTime();
+      return !isNaN(t) && t >= start && t <= end;
+    });
+  }
+
+  /**
+   * Build a map of sanitized repo name -> { project, cluster } from cluster config.
+   * @param {Object} clusterConfig - from GHASCluster.json
+   * @returns {Object} sanitizedRepo -> { project, cluster }
+   */
+  function buildRepoInfoMap(clusterConfig) {
+    const sanitize = n => String(n).replace(/[\s_@#$%^&*!]/g, '-').toLowerCase();
+    const map = {};
+    if (!clusterConfig?.clusters) return map;
+    for (const cluster of clusterConfig.clusters) {
+      for (const project of (cluster.projects || [])) {
+        const repos = Array.isArray(project.repos) ? project.repos : [project.repos];
+        for (const repo of repos) {
+          map[sanitize(repo)] = { project: project.name, cluster: cluster.name };
+        }
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Build the exportable dataset of ALL findings (active, fixed, and dismissed) within a
+   * date range, enriched with project/cluster info for offline analysis (fixing-progress
+   * knowledge base). Date range is matched against fixedDate, falling back to lastSeenDate
+   * for active findings that have no fixedDate.
+   * @param {Array} cacheEntries - from window.GHASResult.getAllCacheEntries()
+   * @param {Object} clusterConfig - from GHASCluster.json
+   * @param {string|null} startDate - 'YYYY-MM-DD'
+   * @param {string|null} endDate - 'YYYY-MM-DD'
+   * @returns {Promise<Array>} array of export records
+   */
+  async function exportFindingsJSON(cacheEntries, clusterConfig, startDate, endDate) {
+    const sanitize = n => String(n).replace(/[\s_@#$%^&*!]/g, '-').toLowerCase();
+    const repoInfo = buildRepoInfoMap(clusterConfig);
+    const allFindings = await getAllFindingsWithProgrammers(cacheEntries);
+    const filtered = filterByDateRange(allFindings, startDate, endDate);
+
+    return filtered.map(f => {
+      const info = repoInfo[sanitize(f.repoName)] || { project: null, cluster: null };
+      return {
+        findingsId: f.fixId,
+        project: info.project,
+        cluster: info.cluster,
+        repo: f.repoName,
+        title: f.title,
+        severity: f.severity,
+        alertType: f.alertType,
+        cve: f.cve,
+        cwe: f.cwe,
+        status: f.status,
+        fixedDate: f.fixedDate,
+        lastSeenDate: f.lastSeenDate,
+        attribution: f.attribution
+      };
+    });
   }
 
   /**
@@ -800,7 +984,7 @@
        return;
      }
       
-     const { embedded = false, clusterConfig: providedConfig = null } = options;
+     const { embedded = false, clusterConfig: providedConfig = null, startDate = null, endDate = null } = options;
        
      // Get cache entries
      if (!window.GHASResult?.getAllCacheEntries) {
@@ -821,12 +1005,18 @@
        
      // Extract fixed findings
      console.log('[FixingActivity] Extracting fixed findings...');
-     const fixedFindings = await getFixedFindingsWithProgrammers(cacheEntries);
-     console.log('[FixingActivity] Fixed findings:', fixedFindings.length);
+     let fixedFindings = await getFixedFindingsWithProgrammers(cacheEntries);
+     console.log('[FixingActivity] Fixed findings (before date filter):', fixedFindings.length);
+       
+     // Apply date-range filter (startDate/endDate are 'YYYY-MM-DD' or null)
+     if (startDate || endDate) {
+       fixedFindings = filterByDateRange(fixedFindings, startDate, endDate);
+       console.log(`[FixingActivity] Fixed findings (after date filter ${startDate || '…'} to ${endDate || '…'}):`, fixedFindings.length);
+     }
        
      if (fixedFindings.length === 0) {
-       console.warn('[FixingActivity] No fixed findings in cache');
-       container.innerHTML = '<div class="no-data">No fixed findings in cache</div>';
+       console.warn('[FixingActivity] No fixed findings in selected range');
+       container.innerHTML = '<div class="no-data">No fixed findings in the selected date range</div>';
        return;
      }
        
@@ -953,6 +1143,11 @@
 
  // Export public API
  window.FixingActivity.getFixedFindingsWithProgrammers = getFixedFindingsWithProgrammers;
+ window.FixingActivity.getAllFindingsWithProgrammers = getAllFindingsWithProgrammers;
+ window.FixingActivity.extractCveCwe = extractCveCwe;
+ window.FixingActivity.filterByDateRange = filterByDateRange;
+ window.FixingActivity.buildRepoInfoMap = buildRepoInfoMap;
+ window.FixingActivity.exportFindingsJSON = exportFindingsJSON;
  window.FixingActivity.groupFindingsByCluster = groupFindingsByCluster;
  window.FixingActivity.buildPivotTable = buildPivotTable;
  window.FixingActivity.buildDailyTotals = buildDailyTotals;

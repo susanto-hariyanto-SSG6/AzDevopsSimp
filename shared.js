@@ -189,18 +189,30 @@
     }
 
     /**
-     * Attribute a single finding with programmer name and commit date.
+     * Attribute a single finding with programmer name, commit date, and the commit's
+     * message/id/url — this is the "how it was fixed" detail (the commit message is
+     * the only place that documents what change resolved the finding).
      * @param {object} finding  finding with fixedDate
-     * @param {Array}  commits  commit list from getCommitsForRepo
-     * @returns {{ name, date }|null}  attribution object or null
+     * @param {Array}  commits  commit list from getCommitsForRepo (raw ADO commit objects)
+     * @param {object} [repoRef] optional { org, projectName, repoName } to build a web commit URL
+     * @returns {{ name, date, message, commitId, commitUrl }|null}  attribution object or null
      */
-    function attributeFinding(finding, commits) {
+    function attributeFinding(finding, commits, repoRef) {
       if (!finding || !finding.fixedDate || !commits?.length) return null;
       const closest = findClosestCommitter(finding.fixedDate, commits);
       if (!closest) return null;
+      const commitId = closest?.commitId || null;
+      let commitUrl = closest?.remoteUrl || null;
+      if (!commitUrl && commitId && repoRef?.org && repoRef?.projectName && repoRef?.repoName) {
+        commitUrl = `https://dev.azure.com/${repoRef.org}/${encodeURIComponent(repoRef.projectName)}` +
+                    `/_git/${encodeURIComponent(repoRef.repoName)}/commit/${commitId}`;
+      }
       return {
         name: closest?.author?.name || closest?.committer?.name || 'Unknown',
-        date: closest?.author?.date || closest?.committer?.date || null
+        date: closest?.author?.date || closest?.committer?.date || null,
+        message: closest?.comment || null,
+        commitId,
+        commitUrl
       };
     }
 
@@ -221,12 +233,13 @@
         const { value: commits } = await getCommitsForRepo(org, projectName, repoName, pat);
         if (!commits?.length) return findings; // No commits, return as-is
         
+        const repoRef = { org, projectName, repoName };
         for (const f of findings) {
           // Only attribute if: no existing attribution, is fixed/dismissed, has fixedDate
           if (!f.attribution) {
             const state = String(f?.state || '').toLowerCase();
             if ((state === 'fixed' || state === 'dismissed') && f.fixedDate) {
-              f.attribution = attributeFinding(f, commits);
+              f.attribution = attributeFinding(f, commits, repoRef);
             }
           }
         }

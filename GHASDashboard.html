@@ -155,6 +155,15 @@
     <div style="padding:20px;color:#888;">Loading clusters…</div>
 </div>
 
+<div id="fixingActivityControls" style="display:none; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 0; padding:10px 12px; background:#f7f9fb; border:1px solid #e0e4e8; border-radius:6px;">
+    <label style="font-size:12px;color:#555;">From <input type="date" id="fixingStartDate" style="margin-left:4px;"></label>
+    <label style="font-size:12px;color:#555;">To <input type="date" id="fixingEndDate" style="margin-left:4px;"></label>
+    <button id="fixingApplyBtn" onclick="applyFixingActivityFilter()">Apply Filter</button>
+    <button id="fixingClearBtn" onclick="clearFixingActivityFilter()" style="background:#888;">Clear</button>
+    <button id="fixingExportBtn" onclick="exportFixingFindingsJSON()" style="background:#27ae60;">⬇ Export Findings JSON</button>
+    <span id="fixingFilterStatus" style="font-size:11px;color:#888;"></span>
+</div>
+
 <div id="fixingActivityContainer" style="display:none;"></div>
 
 <div id="clusterSections"></div>
@@ -855,6 +864,9 @@
         loadFixingActivityFragment();
     }
     
+    // Current chart date-range filter, set via #fixingStartDate / #fixingEndDate inputs
+    let fixingDateRange = { startDate: null, endDate: null };
+
     // Load fixing activity fragment into dashboard
     async function loadFixingActivityFragment() {
         try {
@@ -870,6 +882,8 @@
             
             console.log('[Dashboard] Loading fixing activity fragment...');
             container.style.display = 'block';
+            const controls = document.getElementById('fixingActivityControls');
+            if (controls) controls.style.display = 'flex';
             
             // Get cluster config from init (stored in window.__clusterDef)
             const clusterConfig = window.__clusterDef || {};
@@ -878,13 +892,83 @@
             // Pass cluster config to avoid path issues in embedded context
             await window.FixingActivity.renderDailyActivity(container, { 
                 embedded: true,
-                clusterConfig: clusterConfig
+                clusterConfig: clusterConfig,
+                startDate: fixingDateRange.startDate,
+                endDate: fixingDateRange.endDate
             });
             console.log('[Dashboard] ✓ Fixing activity fragment loaded');
         } catch (e) {
             console.warn('[Dashboard] Error loading fixing activity fragment:', e);
         }
     }
+
+    // Apply the date range from the #fixingStartDate/#fixingEndDate inputs and re-render the chart
+    function applyFixingActivityFilter() {
+        const start = document.getElementById('fixingStartDate')?.value || null;
+        const end = document.getElementById('fixingEndDate')?.value || null;
+        fixingDateRange = { startDate: start, endDate: end };
+        const status = document.getElementById('fixingFilterStatus');
+        if (status) status.textContent = (start || end) ? `Filtered: ${start || '…'} → ${end || '…'}` : '';
+        loadFixingActivityFragment();
+    }
+
+    // Reset the date range filter and re-render the chart with all data
+    function clearFixingActivityFilter() {
+        document.getElementById('fixingStartDate').value = '';
+        document.getElementById('fixingEndDate').value = '';
+        fixingDateRange = { startDate: null, endDate: null };
+        const status = document.getElementById('fixingFilterStatus');
+        if (status) status.textContent = '';
+        loadFixingActivityFragment();
+    }
+
+    // Export fixed findings (with project/repo/cve/status/attribution) as a downloadable JSON file,
+    // scoped to the currently applied date range (or all data if no filter is set).
+    async function exportFixingFindingsJSON() {
+        try {
+            if (!window.FixingActivity?.exportFindingsJSON) {
+                alert('Export not available: fixing-activity.js not loaded');
+                return;
+            }
+            const cacheEntries = await window.GHASResult?.getAllCacheEntries?.();
+            if (!cacheEntries || cacheEntries.length === 0) {
+                alert('No cached data to export');
+                return;
+            }
+            const clusterConfig = window.__clusterDef || {};
+            const data = await window.FixingActivity.exportFindingsJSON(
+                cacheEntries, clusterConfig, fixingDateRange.startDate, fixingDateRange.endDate
+            );
+            if (!data.length) {
+                alert('No findings in the selected date range to export');
+                return;
+            }
+
+            const payload = {
+                exportedAt: new Date().toISOString(),
+                startDate: fixingDateRange.startDate,
+                endDate: fixingDateRange.endDate,
+                count: data.length,
+                findings: data
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const rangeSuffix = (fixingDateRange.startDate || fixingDateRange.endDate)
+                ? `_${fixingDateRange.startDate || 'start'}_to_${fixingDateRange.endDate || 'end'}` : '';
+            a.href = url;
+            a.download = `ghas-fixing-findings${rangeSuffix}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            console.log(`[Dashboard] ✓ Exported ${data.length} findings to JSON`);
+        } catch (e) {
+            console.error('[Dashboard] Export error:', e);
+            alert('Export failed: ' + e.message);
+        }
+    }
+
 
     function randomDelay(minMs = 500, maxMs = 2000) {
         const delay = Math.random() * (maxMs - minMs) + minMs;

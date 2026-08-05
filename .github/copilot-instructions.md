@@ -219,3 +219,62 @@ The original `Math.abs(target - t)` could attribute a finding to a commit that w
 
 When findings were re-fetched from the network the attribution restoration loop wrote `finding.attribution = null` for any alertId found in the old cache even when that old entry had `attribution: null`. A previously computed non-null attribution would be overwritten with `null` if a re-fetch occurred between enrichment and the next read. Fixed to only restore non-null attributions (`if (cached != null)`).
 
+### `attributeFinding` discarded commit message/id/url (`shared.js`)
+
+`findClosestCommitter` already returns the **full raw ADO commit object** (which includes `comment` — the commit message — plus `commitId` and `remoteUrl`), but `attributeFinding()` only kept `{ name, date }`. This meant the app had no way to answer "how was this finding fixed?" even though the data was one property away. Fixed:
+```js
+function attributeFinding(finding, commits, repoRef) {
+  // ...
+  return { name, date, message: closest?.comment ?? null, commitId, commitUrl };
+}
+```
+`commitUrl` is built as `https://dev.azure.com/{org}/{projectName}/_git/{repoName}/commit/{commitId}` when the commit object itself has no `remoteUrl`. `enrichCacheWithAttribution(findings, org, projectName, repoName, pat)` now passes a `repoRef = { org, projectName, repoName }` through to `attributeFinding`. **Note:** only newly-enriched findings get `message`/`commitId`/`commitUrl` — existing cached attributions (`{name, date}` only) are not retroactively upgraded unless that repo's cache entry is cleared and refetched.
+
+---
+
+## GHASDashboard — Fixing-progress chart: date filter + JSON export
+
+### New UI controls (`GHASDashboard.html`)
+
+A control bar (`#fixingActivityControls`) sits above `#fixingActivityContainer`:
+- `#fixingStartDate` / `#fixingEndDate` — native `<input type="date">`, filter on `fixedDate`
+- **Apply Filter** → `applyFixingActivityFilter()` — reads the two inputs into module-level `fixingDateRange`, re-renders the chart via `loadFixingActivityFragment()`
+- **Clear** → `clearFixingActivityFilter()` — resets inputs and `fixingDateRange`, re-renders unfiltered
+- **⬇ Export Findings JSON** → `exportFixingFindingsJSON()` — downloads a JSON file of fixed findings scoped to the current `fixingDateRange` (or all data if unset)
+
+`loadFixingActivityFragment()` now forwards `fixingDateRange.{startDate,endDate}` into `FixingActivity.renderDailyActivity(container, { startDate, endDate, ... })`.
+
+### `fragments/fixing-activity.js` additions
+
+| Function | Purpose |
+|---|---|
+| `extractCveCwe(finding)` | Scans `finding.tools[].rules[].tag/tags` (and top-level `tags`) for `CVE-YYYY-NNNNN` / `CWE-NNN` patterns — same regex approach as `GHASResult.html`'s `getPrimarySecurityTagFromRules` |
+| `filterByDateRange(findings, startDate, endDate)` | Filters to an inclusive `[startDate 00:00Z, endDate 23:59:59Z]` window, matched against `fixedDate`, falling back to `lastSeenDate` for active findings that have no `fixedDate`; either bound may be `null` |
+| `buildRepoInfoMap(clusterConfig)` | Returns `sanitizedRepoName -> { project, cluster }` from `GHASCluster.json`, for enriching exports with project/cluster names |
+| `getAllFindingsWithProgrammers(cacheEntries)` | Like `getFixedFindingsWithProgrammers` but returns **every** finding regardless of `state` (open/active, fixed, dismissed) |
+| `exportFindingsJSON(cacheEntries, clusterConfig, startDate, endDate)` | Builds the full export dataset from `getAllFindingsWithProgrammers` (all statuses, not just fixed/dismissed): `{ findingsId, project, cluster, repo, title, severity, alertType, cve, cwe, status, fixedDate, lastSeenDate, attribution }`, date-filtered |
+
+`getFixedFindingsWithProgrammers()` (used only by the chart, which is about *fixing* activity) and `getAllFindingsWithProgrammers()` (used by export, so users get open + fixed + dismissed findings) both carry `lastSeenDate`, `status` (the finding's `state`), `cve`, `cwe`, and the **full** `attribution` object (not just `.name`) so the export has everything needed for offline "who fixed what, and how" analysis. Active findings have `fixedDate: null` and typically `attribution: null` (nothing to attribute yet).
+
+The exported JSON download is named `ghas-fixing-findings[_<start>_to_<end>].json` and wrapped with `{ exportedAt, startDate, endDate, count, findings }`.
+
+---
+
+## GHASResult — cross-repo "same case" hover insight
+
+Hovering over any finding's `<a class="findings ...">` tag in `GHASResult.html` shows a tooltip with the **distinct programmers and projects** where the same case (matched by CVE, falling back to CWE, falling back to `alertType+title`) was previously fixed/dismissed **anywhere in the shared cache** — not just the current repo.
+
+**Zero new API calls**: the whole feature reads only `window.GHASResult.getAllCacheEntries()` (the same IndexedDB `GHASCache` store shared across `GHASDashboard.html`, `GHASResult.html`, etc.), so if you first ran "Load Live Data" on `GHASDashboard`, `GHASResult.html` immediately benefits from that cache without refetching anything.
+
+New helpers in `GHASResult.html` (module-level, defined right after `let currentPat = ''`):
+
+| Function | Purpose |
+|---|---|
+| `getRepoProjectMap()` | Lazily parses the embedded `allrepojson` into `sanitizedRepoName -> projectName`, memoized in `__repoProjectMapCache` |
+| `getFindingCaseKey(finding, taxonomy)` | Case-identity key: `CVE:<sorted cves>` \| `CWE:<sorted cwes>` \| `TITLE:<alertType>\|<title>` (in that priority order) |
+| `buildCaseIndex(forceRefresh)` | Scans **every** cached `.../repositories/{repo}/alerts` entry (regardless of which page cached it), keeps only `fixed`/`dismissed` findings, and builds `Map<caseKey, {programmers:Set, projects:Set, repos:Set, count}>`. Memoized in `__caseIndexCache` — only rebuilt when `invalidateCaseIndex()` is called |
+| `invalidateCaseIndex()` | Called once at the end of each successful `loadFindingsIntoCell()` (right after `findingsCell.dataset.loaded = '1'`) since that repo's cache (findings + attribution) just changed |
+| `attachCaseInsightHover(tagEl, finding, taxonomy)` | Wires `mouseenter`/`mousemove`/`mouseleave` on a finding's tag to lazily build/reuse the index and render the tooltip via `showCaseTooltip()` |
+
+The tooltip (`#caseInsightTooltip`, a single reused fixed-position `div`) shows: **Fixed by** (distinct programmer names), **Seen in projects** (distinct project names), and an occurrence/repo count — or "No matching fixed/dismissed case found in loaded cache" if the index has nothing for that case yet (e.g. that repo/project hasn't been loaded into cache by any page).
+

@@ -198,6 +198,10 @@
             "SSG6-C2-SobatKI",
             "SSG6-C2-SobatKI-API"
           ]
+        },
+        {
+          "name": "SSG6-C2-WorkplaceManagement",
+          "repos": "SSG6-C2-WorkplaceManagement"
         }
       ]
     },
