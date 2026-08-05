@@ -366,7 +366,7 @@
                 } else {
                     const progList = bucket.programmers.size ? Array.from(bucket.programmers).map(escapeHtml).join(', ') : '—';
                     const projList = bucket.projects.size ? Array.from(bucket.projects).map(escapeHtml).join(', ') : '—';
-                    html += `<div><b>Fixed by:</b> ${progList}</div>`;
+                    html += `<div><b>Fixed by:</b><span style="color:#99f"> ${progList}</span></div>`;
                     html += `<div><b>Seen in projects:</b> ${projList}</div>`;
                     html += `<div style="color:#9ab;margin-top:4px;font-size:9pt;">${bucket.count} occurrence(s) across ${bucket.repos.size} repo(s) in cache</div>`;
                 }

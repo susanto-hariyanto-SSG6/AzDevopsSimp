@@ -215,6 +215,19 @@ The original `Math.abs(target - t)` could attribute a finding to a commit that w
 // prefer latest commit <= fixedDate; fallback to nearest future commit
 ```
 
+### `appendCache` never updated a finding's `state` once cached — reopened findings stuck as "fixed" (`GHASResult.cache.js`)
+
+`appendCache(key, newItems)` was purely additive: it deduped by `alertId` and only ever **added** items whose id hadn't been seen before, silently dropping the freshly-fetched item if that id already existed in cache. So once a finding was cached as `fixed`, refetching later (even after TTL expiry) never updated its `state` — if the finding was reopened (state reverted to `active`), the cache kept showing it as `fixed` forever, and the cross-repo "same case" hover-insight feature in `GHASResult.html` would wrongly count it as an already-fixed case.
+
+Fixed by merging into a `Map<alertId, item>` and always overwriting with the freshly-fetched item's fields:
+```js
+const stillResolved = newState === 'fixed' || newState === 'dismissed';
+// Preserve attribution only while still fixed/dismissed; clear it if the finding reopened.
+item.attribution = stillResolved ? (item.attribution ?? prev.attribution ?? null) : null;
+byId.set(id, item);
+```
+A finding that reopens now gets `state: 'active'` and `attribution: null` on the next refetch, instead of staying stuck as `fixed` with stale attribution. Regression test added: `tests/cache.test.js` → `'appendCache refreshes state on refetch and clears attribution when a finding reopens'`.
+
 ### `stripByUrl` overwrote cached attribution with `null` on re-fetch (`GHASResult.cache.js`)
 
 When findings were re-fetched from the network the attribution restoration loop wrote `finding.attribution = null` for any alertId found in the old cache even when that old entry had `attribution: null`. A previously computed non-null attribution would be overwritten with `null` if a re-fetch occurred between enrichment and the next read. Fixed to only restore non-null attributions (`if (cached != null)`).

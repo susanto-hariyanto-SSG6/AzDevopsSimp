@@ -194,6 +194,34 @@ describe('fetchDataWithHeaders', () => {
     expect(cached.__fromCache).toBe(true);
     expect(cached.data.value).toHaveLength(3);
   });
+
+  test('appendCache refreshes state on refetch and clears attribution when a finding reopens', async () => {
+    const url = 'https://dev.azure.com/itbinus/proj/_apis/alert/repositories/repoReopen/alerts';
+
+    // First fetch: alertId 1 is fixed and has an attribution attached (as enrichment would set it).
+    baseFetch.mockResolvedValueOnce({
+      value: [{ alertId: 1, severity: 'high', state: 'fixed', attribution: { name: 'alice', date: '2024-01-01' } }],
+    });
+    await api.fetchData(url, 'pat-reopen');
+
+    let entries = await api.getAllCacheEntries();
+    let entry = entries.find(e => e.key.includes('repoReopen'));
+    expect(entry.data.payload.value[0].state).toBe('fixed');
+    expect(entry.data.payload.value[0].attribution).toEqual({ name: 'alice', date: '2024-01-01' });
+
+    // Force a refetch (TTL expiry) where the same alertId is now active again (reopened).
+    await api.clearCacheByPattern('repoReopen');
+    baseFetch.mockResolvedValueOnce({
+      value: [{ alertId: 1, severity: 'high', state: 'active' }],
+    });
+    await api.fetchData(url, 'pat-reopen');
+
+    entries = await api.getAllCacheEntries();
+    entry = entries.find(e => e.key.includes('repoReopen'));
+    expect(entry.data.payload.value).toHaveLength(1);
+    expect(entry.data.payload.value[0].state).toBe('active');
+    expect(entry.data.payload.value[0].attribution).toBeNull();
+  });
 });
 
 // ── clearCache ────────────────────────────────────────────────────────────────

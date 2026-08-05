@@ -161,18 +161,35 @@
       const now  = Date.now();
       const hit  = await idbGet(key);
       const existing = (hit?.payload?.value && Array.isArray(hit.payload.value)) ? hit.payload.value : [];
-      const seen = new Set(existing.map(f => String(f?.alertId ?? '')));
-      let addedCount = 0;
+      const byId = new Map(existing.map(f => [String(f?.alertId ?? ''), f]));
+      let addedCount = 0, updatedCount = 0;
+
       for (const item of newItems) {
         const id = String(item?.alertId ?? '');
-        if (id && !seen.has(id)) { 
-          seen.add(id); 
-          existing.push(item); 
+        if (!id) continue;
+        const prev = byId.get(id);
+
+        if (!prev) {
+          byId.set(id, item);
           addedCount++;
+          continue;
         }
+
+        // Merge: always refresh with the freshly-fetched fields (state, fixedDate, etc.) so a
+        // finding that has changed state since it was first cached (e.g. reopened after being
+        // fixed, or newly fixed) is reflected — appendCache used to be add-only and would keep
+        // a stale "fixed" state forever once cached, wrongly counting a reopened finding as fixed.
+        const newState = String(item.state || '').toLowerCase();
+        const stillResolved = newState === 'fixed' || newState === 'dismissed';
+        // Preserve previously-computed attribution only while the finding remains fixed/dismissed;
+        // clear it if the finding reopened (active again) so it's never shown as "already fixed".
+        item.attribution = stillResolved ? (item.attribution ?? prev.attribution ?? null) : null;
+
+        if (String(prev.state || '').toLowerCase() !== newState) updatedCount++;
+        byId.set(id, item);
       }
-      
-      await idbSet(key, { ts: now, exp: now + randomTtl(), payload: { value: existing } });
+
+      await idbSet(key, { ts: now, exp: now + randomTtl(), payload: { value: Array.from(byId.values()) } });
     } catch (e) {
       console.error('[appendCache] Error:', e.message);
     }
