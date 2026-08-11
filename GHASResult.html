@@ -255,14 +255,29 @@
         return map;
     }
 
+    // For dependency findings, the vulnerable package (logicalLocations entries with
+    // kind "component", e.g. "NuGet system.drawing.common 5.0.0") disambiguates cases
+    // that otherwise share the same CVE/CWE but live in different packages.
+    function getFindingComponentKey(finding) {
+        const components = (finding?.logicalLocations || [])
+            .filter(l => l?.kind === 'component')
+            .map(l => l.fullyQualifiedName)
+            .filter(Boolean);
+        return components.length ? Array.from(new Set(components)).sort().join(',') : '';
+    }
+
     // Identify "the same case" primarily by CVE, falling back to CWE, then to
-    // alertType+title when neither taxonomy tag is available.
+    // alertType+title when neither taxonomy tag is available. For dependency findings,
+    // the affected component is appended so the same CVE/CWE in a different package
+    // isn't treated as the same case (more accurate cross-repo comparison).
     function getFindingCaseKey(finding, taxonomy) {
-        if (taxonomy?.cve?.length) return 'CVE:' + Array.from(taxonomy.cve).sort().join(',');
-        if (taxonomy?.cwe?.length) return 'CWE:' + Array.from(taxonomy.cwe).sort().join(',');
+        const componentKey = getFindingComponentKey(finding);
+        const componentSuffix = componentKey ? `|COMP:${componentKey}` : '';
+        if (taxonomy?.cve?.length) return 'CVE:' + Array.from(taxonomy.cve).sort().join(',') + componentSuffix;
+        if (taxonomy?.cwe?.length) return 'CWE:' + Array.from(taxonomy.cwe).sort().join(',') + componentSuffix;
         const type = finding?.alertType || '';
         const title = String(finding?.title || '').trim().toLowerCase();
-        return title ? `TITLE:${type}|${title}` : null;
+        return title ? `TITLE:${type}|${title}${componentSuffix}` : null;
     }
 
     // Build (or reuse) the cross-repo index of fixed/dismissed cases from cached findings only.
@@ -360,7 +375,12 @@
                 const caseKey = getFindingCaseKey(finding, taxonomy);
                 const bucket = caseKey ? index.get(caseKey) : null;
 
+                const componentKey = getFindingComponentKey(finding);
+
                 let html = `<div style="font-weight:600;margin-bottom:4px;">${escapeHtml(taxonomy?.primary || finding?.alertType || 'Finding')} — cross-repo insight</div>`;
+                if (componentKey) {
+                    html += `<div style="color:#9ab;font-size:9pt;margin-bottom:2px;"><b>Component:</b> ${escapeHtml(componentKey)}</div>`;
+                }
                 if (!bucket || (bucket.programmers.size === 0 && bucket.projects.size === 0)) {
                     html += `<div style="color:#aaa;">No matching fixed/dismissed case found in loaded cache.</div>`;
                 } else {
@@ -723,17 +743,22 @@
                     tag.className = `findings ${finding.severity} ${finding.state}`;
                     tag.appendChild(titleSpan);
 
-                    const taxonomySpan = document.createElement('span');
-                    taxonomySpan.className = 'finding-location';
-                    taxonomySpan.textContent = `CVE: ${taxonomy.cve.join(', ') || '-'} | CWE: ${taxonomy.cwe.join(', ') || '-'}`;
-                    tag.appendChild(taxonomySpan);
+                    // Fixed/dismissed findings: keep the row compact — just the title.
+                    // CVE|CWE and location details are only useful while the finding is open.
+                    const isResolved = finding.state === 'fixed' || finding.state === 'dismissed';
+                    if (!isResolved) {
+                        const taxonomySpan = document.createElement('span');
+                        taxonomySpan.className = 'finding-location';
+                        taxonomySpan.textContent = `CVE: ${taxonomy.cve.join(', ') || '-'} | CWE: ${taxonomy.cwe.join(', ') || '-'}`;
+                        tag.appendChild(taxonomySpan);
 
-                    const locationText = getFindingLocationText(finding);
-                    if (locationText) {
-                        const locationSpan = document.createElement('span');
-                        locationSpan.className = 'finding-location';
-                        locationSpan.textContent = locationText;
-                        tag.appendChild(locationSpan);
+                        const locationText = getFindingLocationText(finding);
+                        if (locationText) {
+                            const locationSpan = document.createElement('span');
+                            locationSpan.className = 'finding-location';
+                            locationSpan.textContent = locationText;
+                            tag.appendChild(locationSpan);
+                        }
                     }
 
                     attachCaseInsightHover(tag, finding, taxonomy);
@@ -767,6 +792,17 @@
     }
 
     function getFindingLocationText(finding) {
+        // Dependency findings have no meaningful file/line — instead surface the
+        // actual vulnerable package (logicalLocations entries with kind "component",
+        // e.g. "NuGet system.drawing.common 5.0.0"), not the rootDependency chain.
+        if (finding?.alertType === 'dependency') {
+            const components = (finding?.logicalLocations || [])
+                .filter(l => l?.kind === 'component')
+                .map(l => l.fullyQualifiedName)
+                .filter(Boolean);
+            return components.length ? `Affected: ${components.join(', ')}` : '';
+        }
+
         const location =
             finding?.physicalLocations?.[0] ||
             finding?.physicalLocation?.[0] ||

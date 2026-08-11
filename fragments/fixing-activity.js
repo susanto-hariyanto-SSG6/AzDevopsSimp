@@ -15,6 +15,22 @@
   window.FixingActivity = window.FixingActivity || {};
 
   /**
+   * Extract the affected component(s) for dependency findings from a raw finding's
+   * logicalLocations (kind === 'component'), e.g. "NuGet system.drawing.common 5.0.0".
+   * Used together with CVE/CWE to disambiguate the same vulnerability appearing in
+   * different packages (more accurate case comparison).
+   * @param {Object} finding - raw finding (with logicalLocations[])
+   * @returns {string[]}
+   */
+  function extractComponent(finding) {
+    const components = (finding?.logicalLocations || [])
+      .filter(l => l?.kind === 'component')
+      .map(l => l?.fullyQualifiedName)
+      .filter(Boolean);
+    return Array.from(new Set(components));
+  }
+
+  /**
    * Parse ALL findings from cache entries (active, fixed, and dismissed) with programmer
    * attribution where available. Used for the full findings export (not just fixed ones).
    * @param {Array} cacheEntries - from window.GHASResult.getAllCacheEntries()
@@ -35,6 +51,7 @@
        for (const f of findings) {
          const state = String(f?.state || '').toLowerCase();
          const { cve, cwe } = extractCveCwe(f);
+         const component = extractComponent(f);
 
          all.push({
            fixId: f?.alertId || 'unknown',
@@ -44,7 +61,7 @@
            severity: f?.severity || 'unknown',
            alertType: f?.alertType || 'unknown',
            status: state || 'unknown',
-           cve, cwe,
+           cve, cwe, component,
            programmer: f?.attribution?.name || null,
            attribution: f?.attribution || null,
            repoName: repoName
@@ -85,6 +102,7 @@
          if (!fixedDate) continue;
           
          const { cve, cwe } = extractCveCwe(f);
+         const component = extractComponent(f);
           
          fixed.push({
            fixId: f?.alertId || 'unknown',
@@ -94,7 +112,7 @@
            severity: f?.severity || 'unknown',
            alertType: f?.alertType || 'unknown',
            status: state,
-           cve, cwe,
+           cve, cwe, component,
            programmer: f?.attribution?.name || 'Unknown',
            attribution: f?.attribution || null,
            repoName: repoName
@@ -234,6 +252,7 @@
         alertType: f.alertType,
         cve: f.cve,
         cwe: f.cwe,
+        component: f.component,
         status: f.status,
         fixedDate: f.fixedDate,
         lastSeenDate: f.lastSeenDate,
@@ -1145,6 +1164,7 @@
  window.FixingActivity.getFixedFindingsWithProgrammers = getFixedFindingsWithProgrammers;
  window.FixingActivity.getAllFindingsWithProgrammers = getAllFindingsWithProgrammers;
  window.FixingActivity.extractCveCwe = extractCveCwe;
+ window.FixingActivity.extractComponent = extractComponent;
  window.FixingActivity.filterByDateRange = filterByDateRange;
  window.FixingActivity.buildRepoInfoMap = buildRepoInfoMap;
  window.FixingActivity.exportFindingsJSON = exportFindingsJSON;

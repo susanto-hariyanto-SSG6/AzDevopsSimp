@@ -109,12 +109,21 @@
         properties: r?.properties ? { tag: r.properties.tag, tags: r.properties.tags } : undefined
       })) : []
     })) : [];
-    
+
+    // For dependency findings, only the "component" logicalLocation is the actual
+    // vulnerable package (e.g. "NuGet system.drawing.common 5.0.0") — the
+    // "rootDependency" entries are just the dependency chain, not needed for display.
+    const logicalLocations = Array.isArray(f?.logicalLocations)
+      ? f.logicalLocations
+          .filter(l => l?.kind === 'component')
+          .map(l => ({ fullyQualifiedName: l.fullyQualifiedName, kind: l.kind }))
+      : [];
+
     const result = {
       alertId: f?.alertId, title: f?.title, severity: f?.severity,
       state: f?.state, alertType: f?.alertType,
       lastSeenDate: f?.lastSeenDate ?? null, fixedDate: f?.fixedDate ?? null,
-      physicalLocations: [location], tools,
+      physicalLocations: [location], logicalLocations, tools,
       attribution: f?.attribution ?? null
     };
      

@@ -291,3 +291,26 @@ New helpers in `GHASResult.html` (module-level, defined right after `let current
 
 The tooltip (`#caseInsightTooltip`, a single reused fixed-position `div`) shows: **Fixed by** (distinct programmer names), **Seen in projects** (distinct project names), and an occurrence/repo count — or "No matching fixed/dismissed case found in loaded cache" if the index has nothing for that case yet (e.g. that repo/project hasn't been loaded into cache by any page).
 
+---
+
+## GHASResult — compact rendering: hide CVE/CWE+location when fixed; show affected component for open dependency findings
+
+Each finding tag (`<a class="findings ...">`) renders a title line plus up to two detail lines (`.finding-location` spans): CVE/CWE and location. To reduce clutter, detail lines are now conditional:
+
+- **Fixed/dismissed findings** (`finding.state === 'fixed' || 'dismissed'`): only the title line is rendered — CVE/CWE and location spans are skipped entirely (they add no actionable info once resolved).
+- **Open/active findings**: CVE/CWE line still renders as before. The location line is computed by `getFindingLocationText(finding)`:
+  - `alertType === 'code'` → unchanged: `filePath, line N[-M], col N[-M]` from `physicalLocations[0]`.
+  - `alertType === 'dependency'` → instead of a file location (dependency findings have none), shows `Affected: <fullyQualifiedName>[, ...]` built from `finding.logicalLocations` entries whose `kind === 'component'` (e.g. `NuGet system.drawing.common 5.0.0`). Entries with `kind === 'rootDependency'` (the dependency chain that pulled the vulnerable package in, e.g. `binus.ws.pattern.entities`) are intentionally excluded — only the actually-vulnerable package is shown.
+
+**Cache schema change (`GHASResult.cache.js` → `stripFinding`)**: findings now also persist a compact `logicalLocations` array (only `kind: 'component'` entries, `{fullyQualifiedName, kind}`) so `GHASResult.html` can render the affected-component line without re-fetching. Existing cache entries created before this change won't have `logicalLocations` until that repo's cache is refreshed (clear cache / reload).
+
+### Component-aware case comparison (more accurate cross-repo matching)
+
+The same CVE/CWE can affect multiple unrelated NuGet/npm packages across repos (e.g. `CVE-2024-XXXX` in both `system.drawing.common` and some unrelated package). Matching purely on CVE/CWE would wrongly conflate those as "the same case". Fixed by folding the affected component into the case-identity key:
+
+- `getFindingComponentKey(finding)` (`GHASResult.html`) — sorted, de-duplicated, comma-joined list of `finding.logicalLocations[].fullyQualifiedName` where `kind === 'component'`.
+- `getFindingCaseKey(finding, taxonomy)` now appends `|COMP:<componentKey>` to the `CVE:`/`CWE:`/`TITLE:` key when a component is present. Since the same function builds both the index (`buildCaseIndex`) and the hover lookup (`attachCaseInsightHover`), this stays consistent automatically. Code findings (no `logicalLocations`) are unaffected — no suffix is appended.
+- The hover tooltip now also displays a **Component:** line (from `getFindingComponentKey`) so the comparison basis is visible, not just implicit in the match.
+
+**Carrying component data to `GHASDashboard`**: `fragments/fixing-activity.js` gained `extractComponent(finding)` (mirrors `extractCveCwe`, reading `logicalLocations` for `kind === 'component'`), used by both `getAllFindingsWithProgrammers()` and `getFixedFindingsWithProgrammers()` — both now return a `component: string[]` field per finding. `exportFindingsJSON()`'s output records also include `component`, so the exported JSON (and anything built from it in `GHASDashboard.html`) carries the same disambiguating data as `GHASResult.html`. Exposed as `window.FixingActivity.extractComponent`.
+
