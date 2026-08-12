@@ -255,69 +255,25 @@
         return map;
     }
 
-    // For dependency findings, the vulnerable package (logicalLocations entries with
-    // kind "component", e.g. "NuGet system.drawing.common 5.0.0") disambiguates cases
-    // that otherwise share the same CVE/CWE but live in different packages.
+    // getFindingComponentKey / getFindingCaseKey moved to the shared fragments/case-insight.js
+    // module (window.CaseInsight) so GHASDashboard.html can reuse the exact same case-identity
+    // logic for its own cumulative-count hover feature.
     function getFindingComponentKey(finding) {
-        const components = (finding?.logicalLocations || [])
-            .filter(l => l?.kind === 'component')
-            .map(l => l.fullyQualifiedName)
-            .filter(Boolean);
-        return components.length ? Array.from(new Set(components)).sort().join(',') : '';
+        return window.CaseInsight.getFindingComponentKey(finding);
     }
-
-    // Identify "the same case" primarily by CVE, falling back to CWE, then to
-    // alertType+title when neither taxonomy tag is available. For dependency findings,
-    // the affected component is appended so the same CVE/CWE in a different package
-    // isn't treated as the same case (more accurate cross-repo comparison).
     function getFindingCaseKey(finding, taxonomy) {
-        const componentKey = getFindingComponentKey(finding);
-        const componentSuffix = componentKey ? `|COMP:${componentKey}` : '';
-        if (taxonomy?.cve?.length) return 'CVE:' + Array.from(taxonomy.cve).sort().join(',') + componentSuffix;
-        if (taxonomy?.cwe?.length) return 'CWE:' + Array.from(taxonomy.cwe).sort().join(',') + componentSuffix;
-        const type = finding?.alertType || '';
-        const title = String(finding?.title || '').trim().toLowerCase();
-        return title ? `TITLE:${type}|${title}${componentSuffix}` : null;
+        return window.CaseInsight.getFindingCaseKey(finding, taxonomy);
     }
 
     // Build (or reuse) the cross-repo index of fixed/dismissed cases from cached findings only.
     async function buildCaseIndex(forceRefresh) {
         if (__caseIndexCache && !forceRefresh) return __caseIndexCache;
-        const index = new Map();
+        let index = new Map();
         try {
             if (!window.GHASResult?.getAllCacheEntries) return index;
             const entries = await window.GHASResult.getAllCacheEntries();
             const repoProjectMap = getRepoProjectMap();
-
-            for (const entry of entries) {
-                const key = entry.key || '';
-                const urlMatch = key.match(/\/repositories\/([^/]+)\/alerts/i);
-                if (!urlMatch) continue; // only GHAS alert entries, skip project lists / commits / etc.
-                const sanitizedRepo = urlMatch[1];
-                const projectName = repoProjectMap.get(sanitizedRepo) || null;
-
-                const findings = entry.data?.payload?.value;
-                if (!Array.isArray(findings)) continue;
-
-                for (const f of findings) {
-                    const state = String(f?.state || '').toLowerCase();
-                    if (state !== 'fixed' && state !== 'dismissed') continue; // only "occurred and fixed" cases
-
-                    const taxonomy = getPrimarySecurityTagFromRules(f);
-                    const caseKey = getFindingCaseKey(f, taxonomy);
-                    if (!caseKey) continue;
-
-                    if (!index.has(caseKey)) {
-                        index.set(caseKey, { programmers: new Set(), projects: new Set(), repos: new Set(), count: 0 });
-                    }
-                    const bucket = index.get(caseKey);
-                    const programmer = f?.attribution?.name;
-                    if (programmer) bucket.programmers.add(programmer);
-                    if (projectName) bucket.projects.add(projectName);
-                    bucket.repos.add(sanitizedRepo);
-                    bucket.count++;
-                }
-            }
+            index = window.CaseInsight.buildCaseIndex(entries, repoProjectMap);
         } catch (e) {
             console.warn('[CaseIndex] Build failed:', e.message);
         }
@@ -842,90 +798,10 @@
         return parts.join(', ');
     }
 
+    // Moved to the shared fragments/case-insight.js module (window.CaseInsight) so
+    // GHASDashboard.html's cumulative-count hover feature reuses the exact same logic.
     function getPrimarySecurityTagFromRules(finding) {
-        const cve = [];
-        const cwe = [];
-        const seenCve = new Set();
-        const seenCwe = new Set();
-        const rawTags = [];
-
-        const pushTags = (v) => {
-            if (!v) return;
-            if (Array.isArray(v)) {
-                rawTags.push(...v);
-            } else {
-                rawTags.push(v);
-            }
-        };
-
-        // 1) Preferred shape: finding.tools[].rules[].tag / tags
-        if (Array.isArray(finding?.tools)) {
-            for (const tool of finding.tools) {
-                if (!Array.isArray(tool?.rules)) continue;
-                for (const rule of tool.rules) {
-                    pushTags(rule?.tag);
-                    pushTags(rule?.tags);
-                    pushTags(rule?.properties?.tag);
-                    pushTags(rule?.properties?.tags);
-                }
-            }
-        }
-
-        // 2) Existing/fallback shapes
-        if (Array.isArray(finding?.rules)) {
-            for (const rule of finding.rules) {
-                pushTags(rule?.tag);
-                pushTags(rule?.tags);
-                pushTags(rule?.properties?.tag);
-                pushTags(rule?.properties?.tags);
-            }
-        }
-        if (finding?.rule && typeof finding.rule === 'object') {
-            pushTags(finding.rule?.tag);
-            pushTags(finding.rule?.tags);
-            pushTags(finding.rule?.properties?.tag);
-            pushTags(finding.rule?.properties?.tags);
-        }
-
-        // 3) Last fallback
-        pushTags(finding?.tags);
-        pushTags(finding?.properties?.tags);
-
-        for (const t of rawTags) {
-            const text = typeof t === 'string'
-                ? t
-                : (t?.name || t?.id || t?.value || JSON.stringify(t) || '');
-
-            if (!text) continue;
-            const up = text.toUpperCase();
-
-            // supports CVE-2024-1234, CVE_2024_1234, CVE:2024:1234, etc.
-            const cveMatches = up.match(/CVE[-_:\s]?(\d{4})[-_:\s]?(\d{4,7})/g) || [];
-            const cweMatches = up.match(/CWE[-_:\s]?(\d{1,5})/g) || [];
-
-            for (const m of cveMatches) {
-                const n = m.match(/(\d{4}).*?(\d{4,7})/);
-                if (!n) continue;
-                const id = `CVE-${n[1]}-${n[2]}`;
-                if (!seenCve.has(id)) {
-                    seenCve.add(id);
-                    cve.push(id);
-                }
-            }
-
-            for (const m of cweMatches) {
-                const n = m.match(/(\d{1,5})/);
-                if (!n) continue;
-                const id = `CWE-${n[1]}`;
-                if (!seenCwe.has(id)) {
-                    seenCwe.add(id);
-                    cwe.push(id);
-                }
-            }
-        }
-
-        const primary = cve[0] || cwe[0] || '';
-        return { primary, cve, cwe, rawTags };
+        return window.CaseInsight.getPrimarySecurityTagFromRules(finding);
     }
     function summarizeFixByDay(findings) {
         const items = Array.isArray(findings) ? findings : [];
@@ -1066,5 +942,6 @@
 </script>
 <script src="./GHASResult.cache.js"></script>
 <script src="./shared.js"></script>
+<script src="./fragments/case-insight.js"></script>
 </body>
 </html>

@@ -291,6 +291,55 @@ New helpers in `GHASResult.html` (module-level, defined right after `let current
 
 The tooltip (`#caseInsightTooltip`, a single reused fixed-position `div`) shows: **Fixed by** (distinct programmer names), **Seen in projects** (distinct project names), and an occurrence/repo count — or "No matching fixed/dismissed case found in loaded cache" if the index has nothing for that case yet (e.g. that repo/project hasn't been loaded into cache by any page).
 
+### Shared module: `fragments/case-insight.js` (`window.CaseInsight`)
+
+The case-identity/comparison logic above was extracted out of `GHASResult.html` into `fragments/case-insight.js` so `GHASDashboard.html` can reuse the exact same rules (see next section). Loaded via `<script src="./fragments/case-insight.js"></script>` in both pages, placed after `shared.js` (order doesn't matter relative to `GHASResult.cache.js`/`shared.js` since it's only *called* at runtime, never at parse time).
+
+Exposed on `window.CaseInsight`:
+
+| Function | Purpose |
+|---|---|
+| `isResolved(finding)` | `state === 'fixed' \|\| 'dismissed'` |
+| `getPrimarySecurityTagFromRules(finding)` | Same CVE/CWE tag-scraping logic previously inlined in `GHASResult.html` — returns `{primary, cve[], cwe[], rawTags[]}` |
+| `getFindingComponentKey(finding)` | Sorted/de-duped/comma-joined `logicalLocations[kind='component'].fullyQualifiedName` |
+| `getFindingCaseKey(finding, taxonomy?)` | `CVE:...`\|`CWE:...`\|`TITLE:...` + optional `\|COMP:<component>` suffix. `taxonomy` optional — computed internally if omitted |
+| `buildCaseIndex(entries, repoProjectMap)` | Pure function version of the index builder — takes `getAllCacheEntries()` output + a `sanitizedRepo -> projectName` Map, returns `Map<caseKey, {programmers:Set, projects:Set, repos:Set, count}>`. Callers own memoization/invalidation (each page's cache lifecycle differs) |
+| `escapeHtml(s)` | HTML-escape for tooltip content |
+| `getTooltipEl(id)` / `showTooltip(id, x, y, html)` / `hideTooltip(id)` | Generic reusable fixed-position tooltip `div`, keyed by DOM id so multiple pages/features can each have their own without clobbering |
+
+`GHASResult.html`'s local `getFindingComponentKey`, `getFindingCaseKey`, `getPrimarySecurityTagFromRules`, and the body of `buildCaseIndex()` are now thin wrappers/delegates to `window.CaseInsight.*` — `GHASResult.html` still owns its own memoization (`__caseIndexCache`, `__repoProjectMapCache`), the `allrepojson`-based project map, and the per-finding `#caseInsightTooltip` UI.
+
+---
+
+## GHASDashboard — cumulative-count cell hover insight + fixed/open pie
+
+Reuses `fragments/case-insight.js` (see above) to bring the same "same case" comparison to the per-repo table in `GHASDashboard.html` (`renderProjectTable()` → `fillRepoRow()`).
+
+**Hover box on small counts**: every per-repo numeric cell (Crit/High/Med/Low and the `#` total, for both the Active and Fixed column groups) gets a hover listener via `attachCellHoverInsight(td, sanitizedRepo, severity, isFixedColumn, count)` — but **only when `1 <= count <= 5`** (enough detail without cluttering the table for large counts). On hover it lists each finding that makes up that count:
+
+- **Issue**: `taxonomy.primary` (CVE, else CWE) from `CaseInsight.getPrimarySecurityTagFromRules`, falling back to the finding's title.
+- **Component** (dependency findings only): `CaseInsight.getFindingComponentKey(finding)`, shown in brackets.
+- **Status dot**: 🟢 green if this specific finding is already fixed/dismissed *in this repo* (label shows `— fixed by <programmer>`); ⚪ white if it's still open here **but** `CaseInsight.getFindingCaseKey()` matches an entry in the cross-repo case index (label shows `— fixed elsewhere by <programmer(s)>`, from `bucket.programmers`); transparent/no dot with no fixer label if open and not seen fixed anywhere yet. The fixer name is rendered directly in the popup text (not just a `title` attribute) since the tooltip itself is `pointer-events:none` and nested native tooltips wouldn't be reachable.
+
+**Pie chart next to the cumulative count**: the Fix% cell (`tdPct`) also renders a small CSS `conic-gradient` pie via `miniPieSvg(greenCount, totalCount)`. This is **not** a plain fixed-vs-active split — green counts findings that are **"fixable"**: either already fixed/dismissed in this repo, or still open here but the same case (`CaseInsight.getFindingCaseKey`) was fixed/dismissed **somewhere else** in cache (a precedent that it can be fixed). Red = open findings with no such precedent anywhere yet. `total` is the repo's full findings count (`getRepoFindingsMap()[repo].length`), not just `totalActive+totalFixed` from `liveData` (though they should match once cache is fresh).
+
+Because this requires scanning per-finding data + the cross-repo case index (both async), the pie is rendered in two steps: `fillRepoRow()` first inserts a dashed gray placeholder (`miniPieLoadingSvg()`) inside `<span id="pie-<sanitizedRepo>">`, then `computeFixableCounts(sanitizedRepo)` resolves and swaps in the real `miniPieSvg()` markup via `tdPct.querySelector(...)` (scoped to that cell's own `tdPct`, so repeated re-renders of the same repo never collide on the shared `id`).
+
+New module-level state/helpers in `GHASDashboard.html` (declared right after `sanitize`):
+
+| Function | Purpose |
+|---|---|
+| `getRepoFindingsMap(forceRefresh)` | Like `loadFromCache()`'s "freshest entry per repo" dedup logic, but returns the **full findings array** per repo (not just severity counts), memoized in `__repoFindingsCache` |
+| `getRepoProjectMapFromClusters()` | `sanitizedRepoName -> projectName` built from `window.__clusters[]._projects` (no `allrepojson` dependency, unlike `GHASResult.html`) |
+| `buildDashCaseIndex(forceRefresh)` | Calls `window.CaseInsight.buildCaseIndex()`, memoized in `__dashCaseIndexCache` |
+| `invalidateCaseHoverCaches()` | Clears both caches above — called after: the per-repo refresh button succeeds, `runPipelineDeltaCheck()` refreshes any repos, the full load path in `loadLiveData()` finishes, and after `buildCommitterData()` (attribution) rewrites cache |
+| `computeFixableCounts(sanitizedRepo)` | Async — scans that repo's cached findings + the case index, returns `{green, total}` per the "fixable" definition above |
+| `miniPieSvg(greenCount, totalCount, size?)` | Returns an inline `<span>` with a `conic-gradient` background forming a 2-slice pie (green/red), or a hollow gray circle when `totalCount` is 0 |
+| `miniPieLoadingSvg(size?)` | Dashed-border placeholder circle shown synchronously before `computeFixableCounts()` resolves |
+| `attachCellHoverInsight(td, sanitizedRepo, severity, isFixedColumn, count)` | Wires the hover box described above; no-ops when `count` is 0 or > 5 |
+
+The hover tooltip reuses `window.CaseInsight.showTooltip('dashCellInsightTooltip', ...)` — a separate DOM id from `GHASResult.html`'s `#caseInsightTooltip` so both pages' tooltips don't collide if ever loaded together.
+
 ---
 
 ## GHASResult — compact rendering: hide CVE/CWE+location when fixed; show affected component for open dependency findings

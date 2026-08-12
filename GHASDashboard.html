@@ -241,6 +241,189 @@
     const deltaBuilds = new Map(); // sanitized repoName → { buildNumber, result, finishTime } — populated by pipeline delta check
     const sanitize = n => String(n).replace(/[\s_@#$%^&*!]/g, '-');
 
+    // ── Cumulative-count cell hover insight (reuses fragments/case-insight.js) ─────────────
+    // For any per-repo numeric cell (severity or total, Active or Fixed) whose value is
+    // between 1 and 5, hovering shows the individual findings that make up that count:
+    // issue (CVE/CWE, or title fallback) + affected component (for dependency findings) +
+    // a status dot — green = already fixed here (with programmer), white = still open here
+    // but a matching case (same CVE/CWE[+component]) was already fixed/dismissed somewhere
+    // else in the cached data.
+    let __repoFindingsCache = null; // sanitizedRepoName -> findings[] (freshest cache entry per repo)
+    let __dashCaseIndexCache = null; // Map<caseKey, {programmers,projects,repos,count}> — built by window.CaseInsight
+
+    // Same "freshest entry per repo" selection as loadFromCache(), but keeps the full
+    // findings array (not just severity counts) so the hover box can list individual items.
+    async function getRepoFindingsMap(forceRefresh) {
+        if (__repoFindingsCache && !forceRefresh) return __repoFindingsCache;
+        const map = {};
+        try {
+            const alertPat = /_apis\/alert\/repositories\/([^?\/]+)\/alerts/;
+            const entries = await window.GHASResult.getAllCacheEntries();
+            const freshestByRepo = {};
+            for (const { key, data: entry } of entries) {
+                const urlPart = key.slice('ghas:'.length).split('|u:')[0];
+                const match = urlPart.match(alertPat);
+                if (!match) continue;
+                const repoName = decodeURIComponent(match[1]);
+                if (!entry?.payload?.value) continue;
+                const entryTs = entry.ts || 0;
+                if (!freshestByRepo[repoName] || entryTs > freshestByRepo[repoName].ts) {
+                    freshestByRepo[repoName] = { ts: entryTs, findings: entry.payload.value };
+                }
+            }
+            for (const [repoName, { findings }] of Object.entries(freshestByRepo)) {
+                map[repoName] = findings;
+            }
+        } catch (e) {
+            console.warn('[Dashboard] getRepoFindingsMap error', e);
+        }
+        __repoFindingsCache = map;
+        return map;
+    }
+
+    // sanitizedRepoName -> projectName, built from the already-loaded cluster config.
+    function getRepoProjectMapFromClusters() {
+        const map = new Map();
+        for (const cl of (window.__clusters || [])) {
+            for (const p of (cl._projects || [])) {
+                for (const r of (Array.isArray(p.repos) ? p.repos : [p.repos])) {
+                    map.set(sanitize(r), p.projectName);
+                }
+            }
+        }
+        return map;
+    }
+
+    async function buildDashCaseIndex(forceRefresh) {
+        if (__dashCaseIndexCache && !forceRefresh) return __dashCaseIndexCache;
+        let index = new Map();
+        try {
+            const entries = await window.GHASResult.getAllCacheEntries();
+            index = window.CaseInsight.buildCaseIndex(entries, getRepoProjectMapFromClusters());
+        } catch (e) {
+            console.warn('[Dashboard] buildDashCaseIndex error', e);
+        }
+        __dashCaseIndexCache = index;
+        return index;
+    }
+
+    // Call whenever cached findings for any repo may have changed (refresh button,
+    // full/delta live load) so the next hover rebuilds with fresh data.
+    function invalidateCaseHoverCaches() {
+        __repoFindingsCache = null;
+        __dashCaseIndexCache = null;
+    }
+
+    // Small inline pie (CSS conic-gradient): green slice = "fixable" cases, red = the rest.
+    // "Fixable" here means: already fixed/dismissed in this repo, OR still open in this repo
+    // but the same case (CVE/CWE[+component]) was fixed/dismissed somewhere else in cache —
+    // i.e. a precedent shows it CAN be fixed. Red = open with no such precedent anywhere yet.
+    function miniPieSvg(greenCount, totalCount, size) {
+        const s = size || 16;
+        const r = s / 2;
+        if (!totalCount) {
+            return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" style="vertical-align:middle" title="No findings">
+                <circle cx="${r}" cy="${r}" r="${r - 1}" fill="none" stroke="#ccc" stroke-width="1.5"/></svg>`;
+        }
+        const pct = greenCount / totalCount;
+        // conic-gradient is simplest for a filled pie and works inline via CSS background
+        const deg = Math.round(pct * 360);
+        const style = `width:${s}px;height:${s}px;border-radius:50%;display:inline-block;vertical-align:middle;` +
+            `background:conic-gradient(#27ae60 0deg ${deg}deg, #e74c3c ${deg}deg 360deg);border:1px solid rgba(0,0,0,0.15)`;
+        const title = `${greenCount} fixed/fixable (fixed here or fixed elsewhere) / ${totalCount - greenCount} never fixed anywhere (${Math.round(pct * 100)}%)`;
+        return `<span style="${style}" title="${title}"></span>`;
+    }
+
+    // Loading-state placeholder pie shown synchronously while computeFixableCounts() resolves.
+    function miniPieLoadingSvg(size) {
+        const s = size || 16;
+        return `<span style="width:${s}px;height:${s}px;border-radius:50%;display:inline-block;` +
+            `vertical-align:middle;border:1px dashed #bbb;" title="Loading…"></span>`;
+    }
+
+    // For a repo's findings, count how many are "fixable" (see miniPieSvg comment above),
+    // out of all findings the repo has ever had (active + fixed).
+    async function computeFixableCounts(sanitizedRepo) {
+        const [findingsMap, caseIndex] = await Promise.all([getRepoFindingsMap(), buildDashCaseIndex()]);
+        const findings = findingsMap[sanitizedRepo] || [];
+        let green = 0;
+        for (const f of findings) {
+            if (window.CaseInsight.isResolved(f)) { green++; continue; }
+            const taxonomy = window.CaseInsight.getPrimarySecurityTagFromRules(f);
+            const caseKey = window.CaseInsight.getFindingCaseKey(f, taxonomy);
+            const bucket = caseKey ? caseIndex.get(caseKey) : null;
+            if (bucket && bucket.repos.size > 0) green++; // seen fixed/dismissed elsewhere → fixable
+        }
+        return { green, total: findings.length };
+    }
+
+    // Attach the hover-insight box to a numeric cell showing the findings that compose its
+    // count (only when 1-5, per design — enough detail without cluttering the table).
+    function attachCellHoverInsight(td, sanitizedRepo, severity, isFixedColumn, count) {
+        if (!count || count < 1 || count > 5) return;
+        td.style.cursor = 'help';
+        const tooltipId = 'dashCellInsightTooltip';
+        td.addEventListener('mouseenter', async (ev) => {
+            try {
+                const [findingsMap, caseIndex] = await Promise.all([getRepoFindingsMap(), buildDashCaseIndex()]);
+                const findings = (findingsMap[sanitizedRepo] || []).filter(f => {
+                    const sev = String(f?.severity || '').toLowerCase();
+                    if (severity && sev !== severity) return false;
+                    const resolved = window.CaseInsight.isResolved(f);
+                    return isFixedColumn ? resolved : !resolved;
+                });
+
+                let html = `<div style="font-weight:600;margin-bottom:4px;">${severity ? severity[0].toUpperCase()+severity.slice(1) : 'All'} · ${isFixedColumn ? 'Fixed' : 'Active'} (${findings.length})</div>`;
+                if (!findings.length) {
+                    html += `<div style="color:#aaa;">No details available in cache.</div>`;
+                } else {
+                    html += '<div style="display:flex;flex-direction:column;gap:3px;">';
+                    for (const f of findings) {
+                        const taxonomy = window.CaseInsight.getPrimarySecurityTagFromRules(f);
+                        const issue = taxonomy.primary || f?.title || 'Unknown';
+                        const componentKey = f?.alertType === 'dependency' ? window.CaseInsight.getFindingComponentKey(f) : '';
+                        const resolved = window.CaseInsight.isResolved(f);
+
+                        let dotColor, dotTitle, fixerHtml = '';
+                        if (resolved) {
+                            const programmer = f?.attribution?.name || 'Unknown';
+                            dotColor = '#27ae60';
+                            dotTitle = `Fixed by ${programmer}`;
+                            fixerHtml = ` <span style="color:#8f8;font-size:9pt;">— fixed by ${window.CaseInsight.escapeHtml(programmer)}</span>`;
+                        } else {
+                            const caseKey = window.CaseInsight.getFindingCaseKey(f, taxonomy);
+                            const bucket = caseKey ? caseIndex.get(caseKey) : null;
+                            const seenElsewhere = bucket && bucket.repos.size > 0;
+                            dotColor = seenElsewhere ? '#fff' : 'transparent';
+                            if (seenElsewhere) {
+                                const names = bucket.programmers.size ? Array.from(bucket.programmers).join(', ') : 'unknown programmer';
+                                dotTitle = `Still open here — already fixed/dismissed in ${bucket.repos.size} repo(s) by ${names}`;
+                                fixerHtml = ` <span style="color:#ccc;font-size:9pt;">— fixed elsewhere by ${window.CaseInsight.escapeHtml(names)}</span>`;
+                            } else {
+                                dotTitle = 'Still open — no matching fixed case in cache';
+                            }
+                        }
+                        const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};border:1px solid #888;flex:none;"></span>`;
+                        const compHtml = componentKey ? ` <span style="color:#9ab;font-size:9pt;">[${window.CaseInsight.escapeHtml(componentKey)}]</span>` : '';
+                        html += `<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;" title="${window.CaseInsight.escapeHtml(dotTitle)}">${dot}<span>${window.CaseInsight.escapeHtml(issue)}</span>${compHtml}${fixerHtml}</div>`;
+                    }
+                    html += '</div>';
+                }
+                window.CaseInsight.showTooltip(tooltipId, ev.clientX, ev.clientY, html);
+            } catch (e) {
+                console.warn('[Dashboard] Cell hover insight failed:', e.message);
+            }
+        });
+        td.addEventListener('mousemove', (ev) => {
+            const el = window.CaseInsight.getTooltipEl(tooltipId);
+            if (el.style.display === 'block') {
+                el.style.left = (ev.clientX + 12) + 'px';
+                el.style.top = (ev.clientY + 12) + 'px';
+            }
+        });
+        td.addEventListener('mouseleave', () => window.CaseInsight.hideTooltip(tooltipId));
+    }
+
     // loadFromCache is called in init() AFTER cache.js loads, so getAllCacheEntries is available
     async function loadFromCache() {
         const alertPat = /_apis\/alert\/repositories\/([^?\/]+)\/alerts/;
@@ -628,6 +811,7 @@
                         totalFixed: fix.critical+fix.high+fix.medium+fix.low,
                         fromCache: false
                     };
+                    invalidateCaseHoverCaches(); // this repo's cached findings just changed
                     fillRepoRow(tr, r, projectName);   // re-render this row
                     renderTotalsRow();                  // update table totals
                     // update cluster _totals and re-render cards
@@ -651,34 +835,46 @@
 
             // Data cells helper
             const n = v => v > 0 ? String(v) : '-';
-            const numTd = (val, cls, bg) => {
+            const numTd = (val, cls, bg, severity, isFixedColumn) => {
                 const td = document.createElement('td');
                 td.className = `num ${val > 0 ? cls : 'dim'}`;
                 td.style.background = bg;
                 td.textContent = n(val);
+                attachCellHoverInsight(td, key, severity, isFixedColumn, val);
                 return td;
             };
 
             if (ld) {
-                tr.appendChild(numTd(ld.critical,      'c', '#fdecea'));
-                tr.appendChild(numTd(ld.high,          'h', '#fdecea'));
-                tr.appendChild(numTd(ld.medium,        'm', '#fdecea'));
-                tr.appendChild(numTd(ld.low,           'l', '#fdecea'));
+                tr.appendChild(numTd(ld.critical,      'c', '#fdecea', 'critical', false));
+                tr.appendChild(numTd(ld.high,          'h', '#fdecea', 'high', false));
+                tr.appendChild(numTd(ld.medium,        'm', '#fdecea', 'medium', false));
+                tr.appendChild(numTd(ld.low,           'l', '#fdecea', 'low', false));
                 const tdAt = document.createElement('td');
                 tdAt.className = 'num'; tdAt.style.background = '#fdecea';
                 tdAt.innerHTML = `<b>${ld.totalActive.toLocaleString()}</b>`;
+                attachCellHoverInsight(tdAt, key, null, false, ld.totalActive);
                 tr.appendChild(tdAt);
-                tr.appendChild(numTd(ld.fixedCritical||0, 'c', '#eafaf1'));
-                tr.appendChild(numTd(ld.fixedHigh||0,     'h', '#eafaf1'));
-                tr.appendChild(numTd(ld.fixedMedium||0,   'm', '#eafaf1'));
-                tr.appendChild(numTd(ld.fixedLow||0,      'l', '#eafaf1'));
+                tr.appendChild(numTd(ld.fixedCritical||0, 'c', '#eafaf1', 'critical', true));
+                tr.appendChild(numTd(ld.fixedHigh||0,     'h', '#eafaf1', 'high', true));
+                tr.appendChild(numTd(ld.fixedMedium||0,   'm', '#eafaf1', 'medium', true));
+                tr.appendChild(numTd(ld.fixedLow||0,      'l', '#eafaf1', 'low', true));
                 const tdFt = document.createElement('td');
                 tdFt.className = 'num'; tdFt.style.background = '#eafaf1';
                 tdFt.innerHTML = `<b>${ld.totalFixed.toLocaleString()}</b>`;
+                attachCellHoverInsight(tdFt, key, null, true, ld.totalFixed);
                 tr.appendChild(tdFt);
                 const tdPct = document.createElement('td');
                 tdPct.className = 'num';
-                tdPct.innerHTML = ratePill(fixRate(ld.totalActive, ld.totalFixed));
+                const pieId = `pie-${key}`;
+                // Fix% pill + a small pie chart next to it: green = "fixable" (fixed here, or
+                // fixed elsewhere for the same case), red = never fixed anywhere yet. Requires
+                // scanning cached findings + the cross-repo case index, so render a placeholder
+                // first and swap it in once computeFixableCounts() resolves.
+                tdPct.innerHTML = `${ratePill(fixRate(ld.totalActive, ld.totalFixed))} <span id="${pieId}">${miniPieLoadingSvg()}</span>`;
+                computeFixableCounts(key).then(({ green, total }) => {
+                    const pieSpan = tdPct.querySelector(`#${CSS.escape(pieId)}`);
+                    if (pieSpan) pieSpan.innerHTML = miniPieSvg(green, total);
+                }).catch(e => console.warn('[Dashboard] computeFixableCounts failed:', key, e.message));
                 tr.appendChild(tdPct);
             } else {
                 for (let i = 0; i < 5; i++) { const td = document.createElement('td'); td.className='num dim'; td.style.background='#fdecea'; td.textContent='-'; tr.appendChild(td); }
@@ -1106,6 +1302,7 @@
             }
         }
         if(changed.length > 0) {
+            invalidateCaseHoverCaches(); // refreshed repos' cached findings just changed
             await autoLoadAttribution(window.__clusters);
             await loadFixingActivityFragment();
         }
@@ -1193,6 +1390,7 @@
         btn.disabled = false;
         const freshCount = done - cacheHits - errors;
         setStatus(`✅ Done — ${total} repos · 📦 ${cacheHits} cached · 🌐 ${freshCount} fresh · ❌ ${errors} err`, '#8f8');
+        invalidateCaseHoverCaches(); // full load just (re)wrote cache for every repo
 
         // Re-render with live data — recalculate totals from fresh liveData
         window.__clusters = window.__clusters.map(cl => ({
@@ -1212,6 +1410,7 @@
             
             // Re-render everything after attribution is enriched
             // This will show all cluster cards + attribution tables + fixing activity
+            invalidateCaseHoverCaches(); // attribution enrichment just rewrote cached findings
             await autoLoadAttribution(window.__clusters);
             
             // Re-render the fixing activity chart with fresh data
@@ -1744,6 +1943,7 @@
 </script>
 <script src="./GHASResult.cache.js"></script>
 <script src="./shared.js"></script>
+<script src="./fragments/case-insight.js"></script>
 <link rel="stylesheet" href="./fragments/fixing-activity.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="./fragments/fixing-activity.js"></script>
