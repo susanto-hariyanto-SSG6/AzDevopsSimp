@@ -59,6 +59,80 @@
   margin-bottom: 10px;
 }
 
+/* Timeline / Top-Vulnerabilities chart toggle (mini switch) */
+.activity-charts-section {
+  margin-bottom: 30px;
+}
+
+.chart-view-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 4px 10px;
+}
+
+.chart-view-toggle .toggle-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #aaa;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.chart-view-toggle .toggle-label.active {
+  color: #1e2a38;
+}
+
+.chart-view-toggle .mini-switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 20px;
+  flex: none;
+}
+
+.chart-view-toggle .mini-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.chart-view-toggle .mini-switch-slider {
+  position: absolute;
+  inset: 0;
+  background: #ccc;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.chart-view-toggle .mini-switch-slider::before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.chart-view-toggle .mini-switch input:checked + .mini-switch-slider {
+  background: #8e44ad;
+}
+
+.chart-view-toggle .mini-switch input:checked + .mini-switch-slider::before {
+  transform: translateX(18px);
+}
+
+.topvuln-chart-container {
+  margin-bottom: 0;
+}
+
 .daily-chart-container {
   background: #ffffff;
   border: 1px solid #e0e6ed;

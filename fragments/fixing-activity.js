@@ -553,6 +553,203 @@
   }
   
   /**
+   * Derive a "vulnerability category" label for a finding, so many individual alerts
+   * that represent the same underlying weakness can be counted together. CWE (Common
+   * Weakness Enumeration) is the most stable category — the same CWE shows up across
+   * many repos/titles for the same class of bug — so it's preferred when the finding's
+   * tool rule tags carry one. Findings without a CWE tag (e.g. secret scanning alerts,
+   * or dependency alerts whose rule only carries a CVE) fall back to their title, which
+   * is usually already a general vulnerability name (e.g. "Generic High Entropy Secret").
+   * @param {Object} finding - as returned by getAllFindingsWithProgrammers/getFixedFindingsWithProgrammers
+   * @returns {string}
+   */
+  function getFindingCategory(finding) {
+    if (Array.isArray(finding?.cwe) && finding.cwe.length) return finding.cwe[0];
+    const title = String(finding?.title || '').trim();
+    if (title) return title;
+    return finding?.alertType ? `Unknown (${finding.alertType})` : 'Unknown';
+  }
+
+  /**
+   * Aggregate findings (active + fixed) into per-category totals, sorted descending so
+   * the most frequent vulnerability categories come first. Used by the "Top Vulnerabilities"
+   * panel to answer "what's the top vulnerability across all cached repos right now".
+   * @param {Array} findings - as returned by getAllFindingsWithProgrammers (all cache, all states)
+   * @param {Object} options - { limit: 12 }
+   * @returns {Array<{category,total,active,fixed,critical,high,medium,low}>}
+   */
+  function buildTopVulnerabilityCategories(findings, options = {}) {
+    const { limit = 12 } = options;
+    const byCategory = {};
+    for (const f of (findings || [])) {
+      const category = getFindingCategory(f);
+      if (!byCategory[category]) {
+        byCategory[category] = { category, total: 0, active: 0, fixed: 0, critical: 0, high: 0, medium: 0, low: 0 };
+      }
+      const bucket = byCategory[category];
+      bucket.total++;
+      const isFixedState = f.status === 'fixed' || f.status === 'dismissed';
+      if (isFixedState) bucket.fixed++; else bucket.active++;
+      const sevKey = String(f.severity || '').toLowerCase();
+      if (bucket[sevKey] !== undefined) bucket[sevKey]++;
+    }
+    return Object.values(byCategory).sort((a, b) => b.total - a.total).slice(0, limit);
+  }
+
+  /**
+   * Render a horizontal stacked bar chart of the top vulnerability categories (see
+   * buildTopVulnerabilityCategories), stacked by severity so both frequency and
+   * severity mix are visible at a glance.
+   * @param {HTMLElement} container - Element to render chart into
+   * @param {Array} categories - from buildTopVulnerabilityCategories()
+   */
+  function renderTopVulnerabilityChart(container, categories) {
+    const chartDiv = document.createElement('div');
+    chartDiv.className = 'combined-chart-container topvuln-chart-container';
+
+    const title = document.createElement('h3');
+    title.textContent = 'Top Vulnerabilities by Category';
+    title.style.marginTop = '0';
+    title.style.marginBottom = '5px';
+
+    const subtitle = document.createElement('p');
+    subtitle.textContent = '(Ranked by total occurrences across all cached repos — CWE where available, else finding title)';
+    subtitle.style.margin = '0 0 15px 0';
+    subtitle.style.fontSize = '12px';
+    subtitle.style.color = '#888';
+
+    chartDiv.appendChild(title);
+    chartDiv.appendChild(subtitle);
+    container.appendChild(chartDiv);
+
+    if (!categories || categories.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:20px;text-align:center;color:#888;font-size:12px;';
+      empty.textContent = 'No categorized vulnerability data available in cache.';
+      chartDiv.appendChild(empty);
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.id = 'topvuln-chart';
+    canvas.style.maxWidth = '100%';
+    canvas.style.maxHeight = '440px';
+    chartDiv.appendChild(canvas);
+
+    if (!window.Chart) {
+      console.warn('[FixingActivity] Chart.js not loaded, skipping top-vulnerability chart');
+      return;
+    }
+
+    // Chart.js horizontal bars render bottom-to-top, so reverse to keep #1 at the top.
+    const ordered = [...categories].reverse();
+    const labels = ordered.map(c => c.category.length > 42 ? c.category.slice(0, 42) + '…' : c.category);
+
+    const ctx = canvas.getContext('2d');
+    new window.Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Critical', data: ordered.map(c => c.critical), backgroundColor: '#c0392b' },
+          { label: 'High',     data: ordered.map(c => c.high),     backgroundColor: '#e67e22' },
+          { label: 'Medium',   data: ordered.map(c => c.medium),   backgroundColor: '#2980b9' },
+          { label: 'Low',      data: ordered.map(c => c.low),      backgroundColor: '#95a5a6' }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: { font: { size: 12 }, padding: 12, usePointStyle: true }
+          },
+          tooltip: {
+            callbacks: {
+              afterBody: (items) => {
+                const c = ordered[items[0]?.dataIndex];
+                return c ? `Active: ${c.active} · Fixed: ${c.fixed} · Total: ${c.total}` : '';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            stacked: true,
+            beginAtZero: true,
+            title: { display: true, text: 'Findings', font: { size: 12 } },
+            grid: { color: 'rgba(0, 0, 0, 0.1)' }
+          },
+          y: {
+            stacked: true,
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Render the chart section for the fixing-activity fragment: a mini switch that
+   * toggles between the existing "Daily Fixing Activity" line chart and the new
+   * "Top Vulnerabilities by Category" bar chart, sharing the same slot so only one
+   * is visible at a time.
+   * @param {HTMLElement} container - Element to render into
+   * @param {Array} dates - Sorted dates (YYYY-MM-DD), for the line chart
+   * @param {Object} clusters - { clusterName -> totals array }, for the line chart
+   * @param {Array} categories - from buildTopVulnerabilityCategories(), for the bar chart
+   */
+  function renderActivityChartsSection(container, dates, clusters, categories) {
+    const outer = document.createElement('div');
+    outer.className = 'activity-charts-section';
+
+    const toggleBar = document.createElement('div');
+    toggleBar.className = 'chart-view-toggle';
+    toggleBar.innerHTML = `
+      <span class="toggle-label" data-view="timeline">📈 Timeline</span>
+      <label class="mini-switch" title="Switch chart view">
+        <input type="checkbox" id="chartViewSwitchInput">
+        <span class="mini-switch-slider"></span>
+      </label>
+      <span class="toggle-label" data-view="topvuln">🏆 Top Vulnerabilities</span>
+    `;
+    outer.appendChild(toggleBar);
+
+    const lineHost = document.createElement('div');
+    lineHost.className = 'chart-view-pane';
+    const vulnHost = document.createElement('div');
+    vulnHost.className = 'chart-view-pane';
+
+    outer.appendChild(lineHost);
+    outer.appendChild(vulnHost);
+    container.appendChild(outer);
+
+    renderCombinedLineChart(lineHost, dates, clusters);
+    renderTopVulnerabilityChart(vulnHost, categories);
+
+    const checkbox = toggleBar.querySelector('#chartViewSwitchInput');
+    const labels = toggleBar.querySelectorAll('.toggle-label');
+
+    function applyView(showVuln) {
+      lineHost.style.display = showVuln ? 'none' : 'block';
+      vulnHost.style.display = showVuln ? 'block' : 'none';
+      labels.forEach(l => l.classList.toggle('active', (l.dataset.view === 'topvuln') === showVuln));
+    }
+
+    checkbox.addEventListener('change', () => applyView(checkbox.checked));
+    labels.forEach(l => l.addEventListener('click', () => {
+      const showVuln = l.dataset.view === 'topvuln';
+      checkbox.checked = showVuln;
+      applyView(showVuln);
+    }));
+
+    applyView(false);
+  }
+
+  /**
   * Render a combined line chart showing daily fixing totals for all clusters
   * @param {HTMLElement} container - Element to render chart into
   * @param {Array} dates - Sorted dates (YYYY-MM-DD)
@@ -1033,12 +1230,25 @@
        console.log(`[FixingActivity] Fixed findings (after date filter ${startDate || '…'} to ${endDate || '…'}):`, fixedFindings.length);
      }
        
-     if (fixedFindings.length === 0) {
-       console.warn('[FixingActivity] No fixed findings in selected range');
-       container.innerHTML = '<div class="no-data">No fixed findings in the selected date range</div>';
+     // Extract ALL findings (active + fixed + dismissed) from cache for the "Top
+     // Vulnerabilities by Category" panel — unlike the pivot tables/line chart above,
+     // this isn't limited to fixed findings, since the point is to surface what's
+     // currently the most common vulnerability across every repo in cache.
+     console.log('[FixingActivity] Extracting all findings for category analysis...');
+     let allFindingsForCategories = await getAllFindingsWithProgrammers(cacheEntries);
+     if (startDate || endDate) {
+       allFindingsForCategories = filterByDateRange(allFindingsForCategories, startDate, endDate);
+     }
+     const topVulnCategories = buildTopVulnerabilityCategories(allFindingsForCategories, { limit: 12 });
+     console.log('[FixingActivity] Top vulnerability categories:', topVulnCategories.length);
+
+     const hasFixedFindings = fixedFindings.length > 0;
+     if (!hasFixedFindings && topVulnCategories.length === 0) {
+       console.warn('[FixingActivity] No findings in selected range');
+       container.innerHTML = '<div class="no-data">No findings in the selected date range</div>';
        return;
      }
-       
+
      // Load cluster config
      console.log('[FixingActivity] Loading cluster config...');
      let clusterConfig = providedConfig || {};
@@ -1078,29 +1288,33 @@
        })) || []
      });
        
-     // Group by cluster
+     // Group by cluster (only meaningful when there are fixed findings to plot/pivot)
      console.log('[FixingActivity] Grouping by cluster...');
-     const byCluster = groupFindingsByCluster(fixedFindings, clusterConfig);
+     const byCluster = hasFixedFindings ? groupFindingsByCluster(fixedFindings, clusterConfig) : {};
      console.log('[FixingActivity] Clusters:', Object.keys(byCluster));
-       
+
      // Render combined chart + pivot tables
      console.log('[FixingActivity] Building daily totals...');
-     const dailyData = buildDailyTotals(byCluster);
-       
+     const dailyData = hasFixedFindings ? buildDailyTotals(byCluster) : { dates: [], clusters: {} };
+
      console.log('[FixingActivity] Building pivot tables...');
      let html = '<div class="fixing-activity">';
-       
+
      // Render combined chart at the top
      html += '<div class="combined-chart-placeholder"></div>';
-       
+
+     if (!hasFixedFindings) {
+       html += '<div class="no-data">No fixed findings in the selected date range — showing top vulnerabilities only.</div>';
+     }
+
      for (const [clusterName, clusterFindings] of Object.entries(byCluster)) {
        if (clusterFindings.length === 0) {
          console.log(`[FixingActivity] Skipping empty cluster: ${clusterName}`);
          continue;
        }
-           
+
        console.log(`[FixingActivity] Rendering cluster: ${clusterName} (${clusterFindings.length} findings)`);
-         
+
        // Create cluster section with collapsible header
        const collapsedClass = embedded ? 'collapsed' : '';
        html += `<div class="cluster-section ${collapsedClass}" data-cluster="${clusterName}">`;
@@ -1108,11 +1322,11 @@
                   <span class="cluster-section-toggle">▼</span>${clusterName}
                 </div>`;
        html += `<div class="cluster-section-body" style="display:${embedded ? 'none' : 'block'};">`;
-          
+
        const pivotData = buildPivotTable(clusterFindings);
        console.log(`[FixingActivity] Pivot dates: ${pivotData.dates.length}, programmers: ${pivotData.programmers.length}`);
        html += renderPivotTable(clusterName, pivotData, options);
-        
+
        html += '</div></div>';
      }
      html += '</div>';
@@ -1145,13 +1359,15 @@
        });
      }
        
-     // Now render combined chart into the placeholder (after DOM is ready)
+     // Now render the chart section into the placeholder (after DOM is ready) — a mini
+     // switch lets the user toggle between the daily-activity line chart and the
+     // top-vulnerabilities-by-category bar chart in the same slot.
      const chartPlaceholder = container.querySelector('.combined-chart-placeholder');
      if (chartPlaceholder) {
-       renderCombinedLineChart(chartPlaceholder, dailyData.dates, dailyData.clusters);
+       renderActivityChartsSection(chartPlaceholder, dailyData.dates, dailyData.clusters, topVulnCategories);
      }
-       
-     console.log(`[FixingActivity] ✓ Rendered ${fixedFindings.length} fixed findings in ${Object.keys(byCluster).length} cluster tables`);
+
+     console.log(`[FixingActivity] ✓ Rendered ${fixedFindings.length} fixed findings in ${Object.keys(byCluster).length} cluster tables, ${topVulnCategories.length} vulnerability categories`);
    } catch (e) {
      console.error('[FixingActivity] Error rendering:', e);
      if (container) {
@@ -1171,6 +1387,10 @@
  window.FixingActivity.groupFindingsByCluster = groupFindingsByCluster;
  window.FixingActivity.buildPivotTable = buildPivotTable;
  window.FixingActivity.buildDailyTotals = buildDailyTotals;
+ window.FixingActivity.getFindingCategory = getFindingCategory;
+ window.FixingActivity.buildTopVulnerabilityCategories = buildTopVulnerabilityCategories;
+ window.FixingActivity.renderTopVulnerabilityChart = renderTopVulnerabilityChart;
+ window.FixingActivity.renderActivityChartsSection = renderActivityChartsSection;
  window.FixingActivity.renderCombinedLineChart = renderCombinedLineChart;
  window.FixingActivity.renderLineChart = renderLineChart;
  window.FixingActivity.renderPivotTable = renderPivotTable;
